@@ -1,41 +1,50 @@
+import xerial.sbt.Sonatype._
+
 import scala.sys.process.Process
 import scala.util.{Failure, Try}
 
 val sparkVersion = "3.5.4"
 val deltaLakeVersion = "3.2.1"
 val scala2Version = "2.12.18"
+val githubUser = "fernanluyano"
+val projectName = "db-zpark"
+val email = "fernando.berlanga1@gmail.com"
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 Global / lintUnusedKeysOnLoad := false
 
 ThisBuild / scalaVersion := scala2Version
 ThisBuild / version := getVersion.value
-ThisBuild / organization := "io.github.fernanluyano"
+ThisBuild / organization := s"io.github.$githubUser"
 ThisBuild / description := "A code-first approach to manage Spark/Scala jobs, built on the ZIO framework and geared for Databricks environments"
 ThisBuild / licenses := List("MIT" -> new URL("https://opensource.org/license/mit"))
-ThisBuild / homepage := Some(url("https://github.com/fernanluyano"))
-
+ThisBuild / homepage := Some(url(s"https://github.com/$githubUser"))
+ThisBuild / sonatypeProjectHosting := Some(GitHubHosting(githubUser, projectName, email))
 ThisBuild / scmInfo := Some(
   ScmInfo(
-    url("https://github.com/fernanluyano/db-zpark"),
-    "scm:git@github.com:fernanluyano/db-zpark.git"
+    url(s"https://github.com/$githubUser/$projectName"),
+    s"scm:git@github.com:$githubUser/$projectName.git"
   )
 )
 ThisBuild / developers := List(
   Developer(
-    id = "fernanluyano",
+    id = githubUser,
     name = "Fernando",
-    email = "fernando.berlanga1@gmail.com",
-    url = url("https://github.com/fernanluyano")
+    email = email,
+    url = url(s"https://github.com/$githubUser")
   )
 )
 
 ThisBuild / publishMavenStyle := true
 ThisBuild / versionScheme := Some("early-semver")
+ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
+ThisBuild / sonatypeRepository := sonatypeCentralHost
 ThisBuild / publishTo := {
-  val nexus = "https://s01.oss.sonatype.org/"
-  if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
-  else Some("releases" at nexus + "service/local/staging/deploy/maven2")
+  val central = s"https://$sonatypeCentralHost/"
+  if (isSnapshot.value)
+    Some("snapshots" at central + "repository/maven-snapshots")
+  else
+    Some("releases" at central + "repository/maven-snapshots")
 }
 
 /**
@@ -50,13 +59,13 @@ lazy val providedDependencies = Seq(
 )
 
 lazy val nonProvidedDependencies = Seq(
-  "dev.zio" %% "zio" % "2.1.15",
+  "dev.zio" %% "zio" % "2.1.16",
   "dev.zio" %% "zio-logging" % "2.5.0",
 )
 
 lazy val root = (project in file("."))
   .settings(
-    name := "db-zspark",
+    name := projectName,
     idePackagePrefix := Some("dev.fb.dbzpark"),
     Test / scalaSource := baseDirectory.value / "src/test/scala",
     Compile / scalaSource := baseDirectory.value / "src/main/scala",
@@ -76,7 +85,7 @@ getVersion := {
   val tail = branchParts.last.trim
   head match {
     case "release" => tail
-    case "develop" | "master" => "0.0.0-SNAPSHOT"
+    case "develop" | "master" => s"0.0.0-$head-SNAPSHOT"
     case _ => s"0.0.0-$tail-SNAPSHOT"
   }
 }
