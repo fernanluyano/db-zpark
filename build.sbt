@@ -39,13 +39,7 @@ ThisBuild / publishMavenStyle := true
 ThisBuild / versionScheme := Some("early-semver")
 ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
 ThisBuild / sonatypeRepository := sonatypeCentralHost
-ThisBuild / publishTo := {
-  val central = s"https://$sonatypeCentralHost/"
-  if (isSnapshot.value)
-    Some("snapshots" at central + "repository/maven-snapshots")
-  else
-    Some("releases" at central + "repository/maven-snapshots")
-}
+ThisBuild / publishTo := sonatypePublishToBundle.value
 
 /**
  * Normally the dependencies included in the Databricks Runtime (latest LTS, not ML).
