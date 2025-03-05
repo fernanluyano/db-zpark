@@ -43,7 +43,7 @@ jobs:
         run: |
           echo 'debugging GIT'
           git --version
-          git branch
+          git branch --show-current
           git status
       - name: Build and Test
         run: make build
