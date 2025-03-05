@@ -39,6 +39,12 @@ jobs:
       - uses: sbt/setup-sbt@v1
         with:
           sbt-runner-version: 1.10.7
+      - name: Check Git status
+        run: |
+          echo 'debugging GIT'
+          git --version
+          git branch
+          git status
       - name: Build and Test
         run: make build
         # Optional: This step uploads information to the GitHub dependency graph and unblocking Dependabot alerts for the repository
