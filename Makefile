@@ -18,10 +18,15 @@ build:
 	@sbt test
 	@echo 'done building project'
 
+# Code formatting task
+.PHONY: format
+format:
+	@sbt scalafmtAll
 
 # Show help
 .PHONY: help
 help:
 	@echo "Available targets:"
 	@echo "  build         - Clean, compile and test the project"
+	@echo "  format        - Format the code"
 	@echo "  help          - Show this help message"
