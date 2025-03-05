@@ -3,16 +3,15 @@ package dev.fb.dbzpark
 import org.apache.spark.sql.SparkSession
 
 /**
- * Clients will provide their own dependencies.
+ * Dependencies for the [[WorkflowTask]]. Since it's a Spark application, at least the [[SparkSession]] and application
+ * name should be provided.
  */
 trait TaskEnvironment {
 
-  def sparkSession: SparkSession
-
   /**
-   * As in "dev", "test", "prod" etc.
+   * Clients will provide a custom-built [[SparkSession]].
    */
-  def environmentName: String
+  def sparkSession: SparkSession
 
   /**
    * The spark application name.

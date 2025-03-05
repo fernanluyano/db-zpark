@@ -12,9 +12,9 @@ import zio.{Config, ConfigProvider, LogLevel, ZLayer}
  */
 object DefaultLoggers {
 
-  class Builder private() {
+  class Builder private {
     private var jsonConsoleLogger: Option[ZLayer[Any, Config.Error, Unit]] = None
-    private var kafkaLogger: Option[KafkaLogger] = None
+    private var kafkaLogger: Option[KafkaLogger]                           = None
 
     def withJsonConsole(): Builder = {
       this.jsonConsoleLogger = Option(consoleJsonLogger())
@@ -28,9 +28,9 @@ object DefaultLoggers {
 
     def build: ZLayer[Any, Config.Error, Unit] = {
       val loggers = (jsonConsoleLogger, kafkaLogger) match {
-        case (None, None) => throw new IllegalStateException("you must provide at least one default logger")
-        case (Some(jLogger), None) => jLogger
-        case (None, Some(kLogger)) => zio.Runtime.addLogger(kLogger)
+        case (None, None)                   => throw new IllegalStateException("you must provide at least one default logger")
+        case (Some(jLogger), None)          => jLogger
+        case (None, Some(kLogger))          => zio.Runtime.addLogger(kLogger)
         case (Some(jLogger), Some(kLogger)) => jLogger ++ zio.Runtime.addLogger(kLogger)
       }
 

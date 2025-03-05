@@ -16,12 +16,12 @@ trait WorkflowTask extends ZIOAppDefault {
       startNanos  <- ZIO.succeed(System.nanoTime())
       environment <- ZIO.attempt(buildTaskEnvironment)
       _           <- ZIO.logInfo(s"Starting task: ${environment.appName}")
-      _           <- startTask.provide(ZLayer.succeed(environment)).foldZIO(
-        success = _ =>
-          happyPath(startNanos),
-        failure = e =>
-          sadPath(startNanos, e)
-      )
+      _ <- startTask
+             .provide(ZLayer.succeed(environment))
+             .foldZIO(
+               success = _ => happyPath(startNanos),
+               failure = e => sadPath(startNanos, e)
+             )
     } yield ()
 
   /**
@@ -47,7 +47,7 @@ trait WorkflowTask extends ZIOAppDefault {
    */
   private def sadPath(startTimeNanos: Long, cause: Throwable): Task[Unit] = {
     val elapsedSeconds = (System.nanoTime() - startTimeNanos).nanos.toSeconds
-    val message = s"Task ${buildTaskEnvironment.appName} failed in $elapsedSeconds seconds due to: ${cause.getMessage}"
+    val message        = s"Task ${buildTaskEnvironment.appName} failed in $elapsedSeconds seconds due to: ${cause.getMessage}"
     ZIO.logInfo(message) *> ZIO.fail(cause)
   }
 }
