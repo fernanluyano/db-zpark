@@ -81,6 +81,7 @@ getVersion := {
     case Failure(exception)        => sys.env("BRANCH_NAME")
     case scala.util.Success(value) => value.lineStream.head.trim
   }
+  println(s"Git Branch: $branchName")
   val branchParts = branchName.split("/").take(2)
   val head        = branchParts.head.trim
   val tail        = branchParts.last.trim

@@ -19,7 +19,7 @@ on:
 
 permissions:
   contents: write  # Needed for dependency submission
-  dependency-graph: write  # Required for dependency submission
+  packages: read   # Basic permission
 
 jobs:
   build:
