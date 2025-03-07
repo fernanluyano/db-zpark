@@ -1,6 +1,6 @@
 # db-zpark
 
-[![Scala CI](https://github.com/fernanluyano/db-zpark/actions/workflows/scala.yml/badge.svg)](https://github.com/fernanluyano/db-zpark/actions/workflows/scala.yml)
+[![Scala CI](https://github.com/fernanluyano/db-zpark/actions/workflows/build.yml/badge.svg)](https://github.com/fernanluyano/db-zpark/actions/workflows/build.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.fernanluyano/db-zpark_2.12.svg)](https://central.sonatype.com/artifact/io.github.fernanluyano/db-zpark_2.12)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -8,7 +8,7 @@ A code-first approach to manage Spark/Scala jobs, built on the ZIO framework and
 
 ## Overview
 
-db-zpark provides a structured, functional programming approach to developing Spark applications in Databricks. 
+db-zpark provides a structured, functional programming approach to developing Spark applications in Databricks.
 By leveraging ZIO's powerful effect system, this library helps you build robust, testable, and maintainable data pipelines.
 
 Key features include:
@@ -17,6 +17,13 @@ Key features include:
 - Comprehensive logging framework with Kafka integration
 - Built-in error handling and reporting
 - JSON-based structured logging
+
+## Databricks Runtime Compatibility
+See [Databricks Runtime releases](https://docs.databricks.com/aws/en/release-notes/runtime/#supported-databricks-runtime-lts-releases)
+
+| db-zpark Version | Databricks Runtime | Spark Version | Delta Lake Version | Scala Version | JDK Version | ZIO Version |
+|------------------|-------------------|---------------|--------------------|---------------|------------|-------------|
+| 0.1.x            | 15.4 LTS          | 3.5.4         | 3.2.1              | 2.12.18       | 17         | 2.x         |
 
 ## Installation
 
@@ -27,14 +34,6 @@ libraryDependencies += "io.github.fernanluyano" %% "db-zpark" % "x.y.z"
 ```
 
 Where `x.y.z` is the latest version available on [Maven Central](https://central.sonatype.com/artifact/io.github.fernanluyano/db-zpark_2.12).
-
-## Requirements
-
-- Scala 2.12.x
-- Apache Spark 3.5.x
-- JDK 17+
-- SBT 1.x
-- ZIO 2.x
 
 ## Usage
 
@@ -52,17 +51,17 @@ class MyTaskEnvironment(val sparkSession: SparkSession, val appName: String) ext
 
 // 2. Create your workflow task
 object MySparkJob extends WorkflowTask {
-  
+
   // Build the task environment with Spark session
   override protected def buildTaskEnvironment: TaskEnvironment = {
     val spark = SparkSession.builder()
       .appName("My Spark Job")
       .master("local[*]")
       .getOrCreate()
-      
+
     new MyTaskEnvironment(spark, "My Spark Job")
   }
-  
+
   // Define your task logic
   override protected def startTask: ZIO[TaskEnvironment, Throwable, Unit] = {
     for {
@@ -72,13 +71,13 @@ object MySparkJob extends WorkflowTask {
       data <- ZIO.attempt(env.sparkSession.read.csv("path/to/data.csv"))
       // Process your data
       result <- processData(data)
-      
+
       // Save results
       _ <- ZIO.attempt(result.write.parquet("path/to/output"))
       _ <- ZIO.logInfo("Data processing completed")
     } yield ()
   }
-  
+
   private def processData(df: DataFrame): Task[DataFrame] = {
     ZIO.attempt {
       // Your data transformation logic

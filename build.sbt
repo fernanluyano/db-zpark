@@ -55,7 +55,7 @@ lazy val providedDependencies = Seq(
 lazy val nonProvidedDependencies = Seq(
   "dev.zio" %% "zio"         % "2.1.16",
   "dev.zio" %% "zio-logging" % "2.5.0",
-  "dev.zio" %% "zio-json"    % "0.7.37"
+  "dev.zio" %% "zio-json"    % "0.7.39"
 )
 lazy val testDependencies = Seq(
   "org.scalatest"     %% "scalatest"    % "3.2.19"    % Test,
