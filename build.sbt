@@ -78,7 +78,7 @@ lazy val getVersion = settingKey[String]("get current version")
 getVersion := {
   val branchName = Try(Process("git branch --show-current"))
     .orElse(Try(Process("git rev-parse --abbrev-ref HEAD"))) match {
-    case Failure(exception)        => throw exception
+    case Failure(exception)        => sys.env("BRANCH_NAME")
     case scala.util.Success(value) => value.lineStream.head.trim
   }
   val branchParts = branchName.split("/").take(2)

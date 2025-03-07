@@ -18,7 +18,8 @@ on:
       - "release/**"
 
 permissions:
-  contents: read
+  contents: write  # Needed for dependency submission
+  dependency-graph: write  # Required for dependency submission
 
 jobs:
   build:
@@ -40,12 +41,11 @@ jobs:
       - uses: sbt/setup-sbt@v1
         with:
           sbt-runner-version: 1.10.7
-      - name: Check Git status
-        run: |
-          echo 'debugging GIT'
-          echo "GitHub ref: ${{ github.head_ref || github.ref_name }}"
       - name: Build and Test
         run: make build
+        env:
+          # git can't grab the branch name within the make task in the CICD
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
         # Optional: This step uploads information to the GitHub dependency graph and unblocking Dependabot alerts for the repository
       - name: Upload dependency graph
         uses: scalacenter/sbt-dependency-submission@ab086b50c947c9774b70f39fc7f6e20ca2706c91
