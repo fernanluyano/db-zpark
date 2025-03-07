@@ -30,6 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
             fetch-depth: 0  # Fetch all history and tags
+            ref: ${{ github.head_ref || github.ref_name }}  # get branch name within the workflow
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -42,9 +43,7 @@ jobs:
       - name: Check Git status
         run: |
           echo 'debugging GIT'
-          git --version
-          git branch --show-current
-          git status
+          echo "GitHub ref: ${{ github.head_ref || github.ref_name }}"
       - name: Build and Test
         run: make build
         # Optional: This step uploads information to the GitHub dependency graph and unblocking Dependabot alerts for the repository
