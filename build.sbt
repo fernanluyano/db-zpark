@@ -13,6 +13,8 @@ val email            = "fernando.berlanga1@gmail.com"
 Global / onChangedBuildSource := ReloadOnSourceChanges
 Global / lintUnusedKeysOnLoad := false
 
+ThisBuild / fork := true
+ThisBuild / javaOptions ++= Seq("--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED")
 ThisBuild / scalaVersion           := scala2Version
 ThisBuild / version                := getVersion.value
 ThisBuild / organization           := s"io.github.$githubUser"
