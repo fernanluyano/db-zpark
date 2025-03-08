@@ -30,8 +30,7 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
 
   override def spec = suite("WorkflowTask")(
     test("successful task") {
-      def mySparkTask() =
-        spark.sql("select 1 as n").show()
+      def mySparkTask(): Unit = spark.sql("select 1 as n").count()
 
       val myTask = new WorkflowTask {
         override protected def buildTaskEnvironment                             = new TestTaskEnvironment
