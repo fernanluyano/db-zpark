@@ -23,9 +23,9 @@ trait WorkflowSubtask {
    */
   def run: ZIO[TaskEnvironment, Throwable, Unit] =
     for {
-      _   <- ZIO.logInfo(s"starting subtask $name")
+      _   <- ZIO.logInfo(s"starting subtask ${context.name}")
       env <- ZIO.service[TaskEnvironment]
-      _   <- ZIO.logSpan(s"subtask-$name")(runSubtask(env))
+      _   <- ZIO.logSpan(s"subtask-${context.name}")(runSubtask(env))
     } yield ()
 
   /**
@@ -42,17 +42,16 @@ trait WorkflowSubtask {
       _           <- ZIO.logInfo("finished pre-processing")
       source      <- ZIO.attempt(readSource(env))
       transformed <- ZIO.attempt(transformer(env, source))
-      _           <- ZIO.logInfo("finished reading and transforming")
       _           <- ZIO.attempt(sink(env, transformed))
       _           <- ZIO.logInfo("finished sink")
       _           <- ZIO.attempt(postProcess(env))
-      _           <- ZIO.logInfo(s"finished subtask $name")
+      _           <- ZIO.logInfo(s"finished subtask ${context.name}")
     } yield ()
 
   /**
-   * The name of this subtask for identification in logs.
+   * Metadata about the subtask.
    */
-  protected val name: String
+  protected val context: SubtaskContext
 
   /**
    * Optional pre-processing step executed before reading data.

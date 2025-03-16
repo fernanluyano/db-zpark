@@ -29,7 +29,7 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
 
   // Create a concrete implementation of WorkflowSubtask for testing
   class TestSubtask extends WorkflowSubtask {
-    override protected val name: String = "test-subtask"
+    override protected val context = SubtaskContext("test-subtask", 1)
 
     override protected def preProcess(env: TaskEnvironment): Unit =
       executionOrder += "preProcess"
@@ -99,7 +99,6 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
 
         // Verify each stage completion was logged
         messages.exists(_.contains("finished pre-processing")),
-        messages.exists(_.contains("finished reading and transforming")),
         messages.exists(_.contains("finished sink")),
 
         // Verify stages executed in correct order
@@ -109,7 +108,7 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
     test("subtask handles failures appropriately") {
       // Create a failing subtask
       val failingSubtask = new WorkflowSubtask {
-        override protected val name: String = "failing-subtask"
+        override protected val context = SubtaskContext("failing-subtask", 1)
 
         override protected def readSource(env: TaskEnvironment): Dataset[_] =
           throw new RuntimeException("Simulated read failure")
@@ -145,7 +144,7 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
     test("subtask with default implementations for optional methods") {
       // Create a minimal subtask that only implements required methods
       val minimalSubtask = new WorkflowSubtask {
-        override protected val name: String = "minimal-subtask"
+        override protected val context = SubtaskContext("minimal-subtask", 1)
 
         override protected def readSource(env: TaskEnvironment): Dataset[_] = {
           import spark.implicits._
