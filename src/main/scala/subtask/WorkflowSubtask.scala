@@ -51,7 +51,7 @@ trait WorkflowSubtask {
   /**
    * Metadata about the subtask.
    */
-  protected val context: SubtaskContext
+  val context: SubtaskContext
 
   /**
    * Optional pre-processing step executed before reading data.

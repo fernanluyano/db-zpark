@@ -29,13 +29,13 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
 
   // Create a concrete implementation of WorkflowSubtask for testing
   class TestSubtask extends WorkflowSubtask {
-    override protected val context = SubtaskContext("test-subtask", 1)
+    override val context = SubtaskContext("test-subtask", 1)
 
-    override protected def preProcess(env: TaskEnvironment): Unit =
+    override def preProcess(env: TaskEnvironment): Unit =
       executionOrder += "preProcess"
     // Simulate some pre-processing setup
 
-    override protected def readSource(env: TaskEnvironment): Dataset[_] = {
+    override def readSource(env: TaskEnvironment): Dataset[_] = {
       executionOrder += "readSource"
       // Create a simple test dataset
       import spark.implicits._
@@ -46,14 +46,14 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
       ).toDS()
     }
 
-    override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = {
+    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = {
       executionOrder += "transformer"
       // Apply a simple transformation - filter records with id > 1
       import spark.implicits._
       inDs.as[TestData].filter(_.id > 1)
     }
 
-    override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
+    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
       executionOrder += "sink"
       // In a real implementation, this would write to a destination
       // For testing, just materialize the dataset and check count
@@ -63,7 +63,7 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
       }
     }
 
-    override protected def postProcess(env: TaskEnvironment): Unit =
+    override def postProcess(env: TaskEnvironment): Unit =
       executionOrder += "postProcess"
     // Simulate some cleanup or finalization
   }
@@ -108,15 +108,15 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
     test("subtask handles failures appropriately") {
       // Create a failing subtask
       val failingSubtask = new WorkflowSubtask {
-        override protected val context = SubtaskContext("failing-subtask", 1)
+        override val context = SubtaskContext("failing-subtask", 1)
 
-        override protected def readSource(env: TaskEnvironment): Dataset[_] =
+        override def readSource(env: TaskEnvironment): Dataset[_] =
           throw new RuntimeException("Simulated read failure")
 
-        override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] =
+        override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] =
           inDs // Never called due to readSource failure
 
-        override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
+        override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
           // Never called due to readSource failure
         }
       }
@@ -144,17 +144,17 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
     test("subtask with default implementations for optional methods") {
       // Create a minimal subtask that only implements required methods
       val minimalSubtask = new WorkflowSubtask {
-        override protected val context = SubtaskContext("minimal-subtask", 1)
+        override val context = SubtaskContext("minimal-subtask", 1)
 
-        override protected def readSource(env: TaskEnvironment): Dataset[_] = {
+        override def readSource(env: TaskEnvironment): Dataset[_] = {
           import spark.implicits._
           Seq(TestData(1, "minimal")).toDS()
         }
 
-        override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] =
+        override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] =
           inDs // Pass-through
 
-        override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit =
+        override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit =
           // Just count to materialize
           outDs.count()
       }

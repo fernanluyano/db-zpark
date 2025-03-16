@@ -1,54 +1,90 @@
 package dev.fb.dbzpark
 package subtask
 
-import zio.ZIO
+import zio.{Schedule, ZIO}
 
-sealed trait WorkflowSubtasksRunner[T] {
-  protected val subtasks: Seq[WorkflowSubtask]
-  protected val config: SubtasksRunnerConfig
+sealed trait WorkflowSubtasksRunner {
+  val subtasks: Seq[WorkflowSubtask]
 
-  def run: ZIO[TaskEnvironment, Throwable, Unit]
+  def run: ZIO[TaskEnvironment, Throwable, Unit] =
+    for {
+      _ <- ZIO.foreachDiscard(subtasks)(runOne)
+    } yield ()
+
+  protected def runOne(subtask: WorkflowSubtask): ZIO[TaskEnvironment, Throwable, Unit] =
+    subtask.run.tapError(e => ZIO.logError(s"Subtask ${subtask.context.name} failed: ${e.getMessage}"))
+
 }
 
-class SequentialRunner[T] private (
-  override protected val subtasks: Seq[WorkflowSubtask],
-  override protected val config: SubtasksRunnerConfig
-) extends WorkflowSubtasksRunner[T] {
+sealed trait ConcurrentRunner extends WorkflowSubtasksRunner {
+  val concurrency: Int
 
   override def run: ZIO[TaskEnvironment, Throwable, Unit] =
     for {
-      _ <- ZIO.foreachDiscard(subtasks)(_.run)
+      _ <- ZIO.foreachParDiscard(subtasks)(runOne).withParallelism(concurrency)
     } yield ()
 }
 
-object SequentialRunner {
-  def apply[T](subtasks: Seq[WorkflowSubtask], failFast: Boolean = true, maxRetries: Int = 0): SequentialRunner[T] = {
-    val config = SubtasksRunnerConfig(concurrency = 1, failFast = failFast, maxRetries = maxRetries)
-    new SequentialRunner[T](subtasks, config)
-  }
+sealed trait RetryableRunner extends WorkflowSubtasksRunner {
+  val maxRetries: Int
+
+  override protected def runOne(subtask: WorkflowSubtask): ZIO[TaskEnvironment, Throwable, Unit] =
+    subtask.run
+      .retry(Schedule.recurs(maxRetries))
+      .tapError(e =>
+        ZIO.logError(s"Subtask ${subtask.context.name} failed after $maxRetries attempts: ${e.getMessage}")
+      )
 }
 
-class ConcurrentRunner[T] private (
-  override protected val subtasks: Seq[WorkflowSubtask],
-  override protected val config: SubtasksRunnerConfig
-) extends WorkflowSubtasksRunner[T] {
-
-  override def run: ZIO[TaskEnvironment, Throwable, Unit] =
-    for {
-      _ <- ZIO.foreachParDiscard(subtasks)(_.run)
-    } yield ()
-
+sealed trait IgnoredFails extends WorkflowSubtasksRunner {
+  override protected def runOne(subtask: WorkflowSubtask): ZIO[TaskEnvironment, Throwable, Unit] =
+    super
+      .runOne(subtask)
+      .foldZIO(
+        success = _ => ZIO.unit,
+        failure = e => ZIO.logError(s"Subtask ${subtask.context.name} failed: ${e.getMessage}")
+      )
 }
 
-object ConcurrentRunner {
-  def apply[T](
+object Runners {
+  class SequentialRunner (
+    override val subtasks: Seq[WorkflowSubtask]
+  ) extends WorkflowSubtasksRunner
+
+  class ParallelRunner (
+    override val subtasks: Seq[WorkflowSubtask],
+    override val concurrency: Int
+  ) extends WorkflowSubtasksRunner
+      with ConcurrentRunner
+
+  class RetrySequentialRunner (
+    override val subtasks: Seq[WorkflowSubtask],
+    override val maxRetries: Int
+  ) extends WorkflowSubtasksRunner
+      with RetryableRunner
+
+  class ResilientParallelRunner (
+    override val subtasks: Seq[WorkflowSubtask],
+    override val concurrency: Int,
+    override val maxRetries: Int
+  ) extends WorkflowSubtasksRunner
+      with ConcurrentRunner
+      with RetryableRunner
+      with IgnoredFails
+
+  def sequential(subtasks: Seq[WorkflowSubtask]): SequentialRunner =
+    new SequentialRunner(subtasks)
+
+  def parallel(subtasks: Seq[WorkflowSubtask], concurrency: Int): ParallelRunner =
+    new ParallelRunner(subtasks, concurrency)
+
+  def retryable(subtasks: Seq[WorkflowSubtask], maxRetries: Int): RetrySequentialRunner =
+    new RetrySequentialRunner(subtasks, maxRetries)
+
+  def resilient(
     subtasks: Seq[WorkflowSubtask],
     concurrency: Int,
-    failFast: Boolean = true,
-    maxRetries: Int = 0
-  ): ConcurrentRunner[T] = {
-    require(concurrency > 1, s"concurrency must be > 1: supplied [${concurrency}]")
-    val config = SubtasksRunnerConfig(concurrency = concurrency, failFast = failFast, maxRetries = maxRetries)
-    new ConcurrentRunner[T](subtasks, config)
-  }
+    maxRetries: Int
+  ): ResilientParallelRunner =
+    new ResilientParallelRunner(subtasks, concurrency, maxRetries)
 }
