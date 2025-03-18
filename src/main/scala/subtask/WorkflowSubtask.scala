@@ -8,12 +8,18 @@ import zio.{Task, ZIO}
  * A composable unit of work within a workflow that processes data through defined pipeline stages.
  *
  * This trait implements a standardized sequence of operations:
- *   1. Pre-processing setup 2. Data source reading 3. Data transformation 4. Writing to a sink 5. Post-processing
- *      cleanup
- *
+ * <ul>
+ *   <li>Pre-processing setup</li>
+ *   <li>Data source reading</li>
+ *   <li>Data transformation</li>
+ *   <li>Writing to a sink</li>
+ *   <li>Post-processing and / or cleanup</li>
+ * </ul>
  * Each stage is tracked with appropriate logging for monitoring and diagnostics.
  */
 trait WorkflowSubtask {
+  // Map failures to success, but log the error
+  protected val ignoreAndLogFailures: Boolean = false
 
   /**
    * Executes the subtask with logging and timing.
@@ -36,8 +42,8 @@ trait WorkflowSubtask {
    * @return
    *   A Task representing the subtask execution
    */
-  private def runSubtask(env: TaskEnvironment): Task[Unit] =
-    for {
+  private def runSubtask(env: TaskEnvironment): Task[Unit] = {
+    val flow = for {
       _           <- ZIO.attempt(preProcess(env))
       _           <- ZIO.logInfo("finished pre-processing")
       source      <- ZIO.attempt(readSource(env))
@@ -47,6 +53,16 @@ trait WorkflowSubtask {
       _           <- ZIO.attempt(postProcess(env))
       _           <- ZIO.logInfo(s"finished subtask ${context.name}")
     } yield ()
+
+    flow.foldZIO(
+      success = _ => ZIO.unit,
+      failure = e =>
+        if (ignoreAndLogFailures)
+          ZIO.logError(s"Subtask ${context.name} failed: ${e.getMessage}").unit
+        else
+          ZIO.fail(e)
+    )
+  }
 
   /**
    * Metadata about the subtask.

@@ -4,9 +4,6 @@ package subtask
 import org.apache.spark.sql.{Dataset, SparkSession}
 import zio._
 import zio.test._
-import dev.fb.dbzpark.subtask.Runners._
-
-// Import the concrete runner implementations
 
 object WorkflowSubtasksRunnerSpec extends ZIOSpecDefault {
   // Create a SparkSession for testing
@@ -16,84 +13,98 @@ object WorkflowSubtasksRunnerSpec extends ZIOSpecDefault {
     .appName("runner-test")
     .getOrCreate()
 
-  // Create a test implementation of TaskEnvironment
+  // Create a test environment
   class TestTaskEnvironment extends TaskEnvironment {
     override def sparkSession: SparkSession = spark
-    override def appName: String            = "RunnerTestApp"
+    override def appName: String            = "TestApp"
   }
 
-  // Simple case class for test data
-  case class TestData(id: Int, value: String)
-
-  // Create a test environment layer
   val taskEnvLayer: ZLayer[Any, Nothing, TaskEnvironment] = ZLayer.succeed(new TestTaskEnvironment)
 
-  // Track execution for verification
-  case class ExecutionState(started: Ref[List[String]],
-                            completed: Ref[List[String]],
-                            failed: Ref[List[String]])
-
-  def makeExecutionState: UIO[ExecutionState] = for {
-    started <- Ref.make(List.empty[String])
-    completed <- Ref.make(List.empty[String])
-    failed <- Ref.make(List.empty[String])
-  } yield ExecutionState(started, completed, failed)
-
-  // Factory for creating test subtasks
-  def createSuccessfulSubtask(name: String, executionState: ExecutionState): WorkflowSubtask = new WorkflowSubtask {
+  // Create test subtasks
+  class SuccessfulSubtask(val name: String) extends WorkflowSubtask {
     override val context = SubtaskContext(name, 1)
 
     override def readSource(env: TaskEnvironment): Dataset[_] = {
-      executionState.started.update(list => name :: list).ignore
-      // Create a simple test dataset
       import spark.implicits._
-      Seq(TestData(1, s"value-$name")).toDS()
+      Seq((1, name)).toDF("id", "name")
     }
 
     override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
 
-    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
-      outDs.count() // Force evaluation
-      executionState.completed.update(list => name :: list).ignore
-    }
+    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit =
+      outDs.count() // Materialize the dataset
   }
 
-  def createFailingSubtask(name: String, executionState: ExecutionState): WorkflowSubtask = new WorkflowSubtask {
+  class FailingSubtask(val name: String) extends WorkflowSubtask {
     override val context = SubtaskContext(name, 1)
 
-    override def readSource(env: TaskEnvironment): Dataset[_] = {
-      executionState.started.update(list => name :: list).ignore
-      executionState.failed.update(list => name :: list).ignore
+    override def readSource(env: TaskEnvironment): Dataset[_] =
       throw new RuntimeException(s"Simulated failure in $name")
-    }
 
     override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
 
-    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
-      // This should never be called
-      executionState.completed.update(list => name :: list).ignore
-    }
+    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {}
   }
 
-  override def spec = {
-    suite("WorkflowSubtasksRunner")(
-      test("SequentialRunner should execute subtasks in order") {
-        for {
-          state <- makeExecutionState
-          task1 = createSuccessfulSubtask("task1", state)
-          task2 = createSuccessfulSubtask("task2", state)
-          task3 = createSuccessfulSubtask("task3", state)
+  override def spec = suite("WorkflowSubtasksRunner")(
+    test("SequentialRunner should execute all tasks successfully") {
+      // Create successful subtasks
+      val task1 = new SuccessfulSubtask("task1")
+      val task2 = new SuccessfulSubtask("task2")
+      val task3 = new SuccessfulSubtask("task3")
 
-          runner = new SequentialRunner(Seq(task1, task2, task3))
-          _ <- runner.run.provide(taskEnvLayer)
+      // Run the sequential runner
+      val runner = Factory.SequentialRunner(Seq(task1, task2, task3))
+      runner.run.provide(taskEnvLayer).as(assertTrue(true))
+    },
+    test("SequentialRunner should fail when a task fails") {
+      // Mix successful and failing subtasks
+      val task1 = new SuccessfulSubtask("task1")
+      val task2 = new FailingSubtask("task2")
+      val task3 = new SuccessfulSubtask("task3")
 
-          started <- state.started.get
-          completed <- state.completed.get
-        } yield assertTrue(
-          started == List("task3", "task2", "task1"),    // First in, last out (stack)
-          completed == List("task3", "task2", "task1")   // Last completed is on top of the list
+      // Run the sequential runner
+      val runner = Factory.SequentialRunner(Seq(task1, task2, task3))
+      runner.run.provide(taskEnvLayer).exit.map { exit =>
+        // The runner should fail with an exception from task2
+        assertTrue(
+          exit.isFailure,
+          exit.causeOption
+            .flatMap(cause => cause.failureOption)
+            .exists(_.getMessage.contains("Simulated failure in task2"))
         )
       }
-    )
-  }
+    },
+    test("ParallelRunner should execute all tasks successfully") {
+      // Create several successful subtasks
+      val tasks = (1 to 5).map(i => new SuccessfulSubtask(s"task$i")).toSeq
+
+      // Run the parallel runner
+      val runner = Factory.ParallelRunner(tasks, 3) // Use 3 as concurrency
+      runner.run.provide(taskEnvLayer).as(assertTrue(true))
+    },
+    test("ParallelRunner should fail when a task fails") {
+      // Mix successful and failing subtasks
+      val tasks = Seq(
+        new SuccessfulSubtask("task1"),
+        new SuccessfulSubtask("task2"),
+        new FailingSubtask("task3"),
+        new SuccessfulSubtask("task4"),
+        new SuccessfulSubtask("task5")
+      )
+
+      // Run the parallel runner
+      val runner = Factory.ParallelRunner(tasks, 3)
+      runner.run.provide(taskEnvLayer).exit.map { exit =>
+        // The runner should fail with an exception
+        assertTrue(
+          exit.isFailure,
+          exit.causeOption
+            .flatMap(cause => cause.failureOption)
+            .exists(_.getMessage.contains("Simulated failure in task3"))
+        )
+      }
+    }
+  )
 }

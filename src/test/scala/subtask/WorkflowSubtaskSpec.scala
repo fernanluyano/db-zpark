@@ -141,6 +141,39 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
         !messages.exists(_.contains("finished subtask failing-subtask"))
       )
     },
+    test("subtask ignores failures") {
+      // Create a failing subtask
+      val failingSubtask = new WorkflowSubtask {
+        override val context                           = SubtaskContext("failing-subtask", 1)
+        override protected val ignoreAndLogFailures: Boolean = true
+
+        override def readSource(env: TaskEnvironment): Dataset[_] =
+          throw new RuntimeException("Simulated read failure")
+
+        override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] =
+          inDs // Never called due to readSource failure
+
+        override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
+          // Never called due to readSource failure
+        }
+      }
+
+      val env = new TestTaskEnvironment()
+
+      for {
+        // Run the failing subtask and capture the exit
+        _ <- failingSubtask.run.provide(ZLayer.succeed(env))
+
+        // Check logs for failure indications
+        logOutput <- ZTestLogger.logOutput
+        messages   = logOutput.map(_.message())
+      } yield assertTrue(
+        // Verify failure was logged
+        messages.exists(_.contains("starting subtask failing-subtask")),
+        // Verify subtask failure message was logged
+        messages.exists(_.contains(s"Subtask ${failingSubtask.context.name} failed: Simulated read failure"))
+      )
+    },
     test("subtask with default implementations for optional methods") {
       // Create a minimal subtask that only implements required methods
       val minimalSubtask = new WorkflowSubtask {
