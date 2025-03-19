@@ -144,7 +144,7 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
     test("subtask ignores failures") {
       // Create a failing subtask
       val failingSubtask = new WorkflowSubtask {
-        override val context                           = SubtaskContext("failing-subtask", 1)
+        override val context                                 = SubtaskContext("failing-subtask", 1)
         override protected val ignoreAndLogFailures: Boolean = true
 
         override def readSource(env: TaskEnvironment): Dataset[_] =
