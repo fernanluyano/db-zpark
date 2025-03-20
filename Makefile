@@ -4,7 +4,7 @@
 # Configuration
 SBT_OPTS := -Xmx2G -XX:+UseG1GC
 
-# Build task
+### Build task
 .PHONY: build
 build:
 	@echo 'building project...'
@@ -18,12 +18,18 @@ build:
 	@sbt test
 	@echo 'done building project'
 
-# Code formatting task
+### Code formatting task
 .PHONY: format
 format:
-	@sbt scalafmtAll
+	@sbt scalafmtAll scalafmtSbt
 
-# Show help
+### Local release. It takes too long in the cicd
+.PHONY: release-from-local
+release-from-local:
+	@echo "Releasing..."
+	@sbt verifyReleaseBranch publishSigned sonatypeBundleRelease
+
+### Show help
 .PHONY: help
 help:
 	@echo "Available targets:"

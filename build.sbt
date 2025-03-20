@@ -1,4 +1,4 @@
-import xerial.sbt.Sonatype.*
+import xerial.sbt.Sonatype._
 
 import scala.sys.process.Process
 import scala.util.{Failure, Try}
@@ -60,14 +60,15 @@ lazy val nonProvidedDependencies = Seq(
   "dev.zio" %% "zio-json"    % "0.7.39"
 )
 lazy val testDependencies = Seq(
-  "org.scalatest"     %% "scalatest"    % "3.2.19"    % Test,
-  "org.scalatestplus" %% "mockito-3-4"  % "3.2.10.0"  % Test,
-  "dev.zio"           %% "zio-test"     % "2.1.16"    % Test,
-  "dev.zio"           %% "zio-test-sbt" % "2.1.16"    % Test
+  "org.scalatest"     %% "scalatest"    % "3.2.19"   % Test,
+  "org.scalatestplus" %% "mockito-3-4"  % "3.2.10.0" % Test,
+  "dev.zio"           %% "zio-test"     % "2.1.16"   % Test,
+  "dev.zio"           %% "zio-test-sbt" % "2.1.16"   % Test
 )
 lazy val allDependencies = providedDependencies ++ nonProvidedDependencies ++ testDependencies
 
-lazy val root = (project in file("."))
+lazy val root = project
+  .in(file("."))
   .settings(
     name                  := projectName,
     idePackagePrefix      := Some("dev.fb.dbzpark"),
@@ -92,4 +93,17 @@ getVersion := {
     case "develop" | "master" => s"0.0.0-$head-SNAPSHOT"
     case _                    => s"0.0.0-$tail-SNAPSHOT"
   }
+}
+
+// Single task for verification and release
+lazy val verifyReleaseBranch =
+  taskKey[Unit]("Verify branch and publish a release to Sonatype (only from release branches)")
+verifyReleaseBranch := {
+  val version = getVersion.value
+
+  // Check if we're on a release branch by examining the version
+  if (version.contains("SNAPSHOT")) {
+    throw new Exception(s"Publishing releases is only allowed from release branches. Current version: $version")
+  }
+  println(s"Allow to release version: $version")
 }
