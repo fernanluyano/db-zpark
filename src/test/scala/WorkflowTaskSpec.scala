@@ -3,7 +3,6 @@ package dev.fb.dbzpark
 import logging.DefaultLoggers
 
 import org.apache.spark.sql.SparkSession
-import org.mockito.Mockito.mock
 import zio._
 import zio.test._
 
