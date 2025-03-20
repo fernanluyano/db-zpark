@@ -3,13 +3,18 @@ package dev.fb.dbzpark
 import logging.DefaultLoggers
 
 import org.apache.spark.sql.SparkSession
-import org.mockito.Mockito.mock
 import zio._
 import zio.test._
 
 object WorkflowTaskSpec extends ZIOSpecDefault {
+  private val spark = SparkSession
+    .builder()
+    .master("local[2]")
+    .appName("test-app")
+    .getOrCreate()
+
   class TestTaskEnvironment extends TaskEnvironment {
-    override def sparkSession: SparkSession = mock(classOf[SparkSession])
+    override def sparkSession: SparkSession = spark
     override def appName: String            = "test-app"
   }
 
@@ -24,9 +29,11 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
 
   override def spec = suite("WorkflowTask")(
     test("successful task") {
+      def mySparkTask(): Unit = spark.sql("select 1 as n").count()
+
       val myTask = new WorkflowTask {
         override protected def buildTaskEnvironment                             = new TestTaskEnvironment
-        override protected def startTask: ZIO[TaskEnvironment, Throwable, Unit] = ZIO.unit
+        override protected def startTask: ZIO[TaskEnvironment, Throwable, Unit] = ZIO.attempt(mySparkTask())
         // Override the bootstrap to use our test logging layer
         override val bootstrap = loggingLayer
       }
@@ -36,7 +43,7 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
         _            <- t.run.provideSomeLayer[Scope](appArgsLayer)
         loggerOutput <- ZTestLogger.logOutput
         messages     <- ZIO.attempt(loggerOutput.map(_.message()).toSet)
-      } yield assertTrue(messages.contains("Task test-app finished successfully in 0 seconds"))
+      } yield assertTrue(messages.exists(e => e.startsWith("Task test-app finished successfully")))
     },
     test("failing task") {
       val failingTask = new WorkflowTask {
