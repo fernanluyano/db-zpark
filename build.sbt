@@ -43,6 +43,13 @@ ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
 ThisBuild / sonatypeRepository     := sonatypeCentralHost
 ThisBuild / publishTo              := sonatypePublishToBundle.value
 
+addCompilerPlugin(scalafixSemanticdb)
+scalacOptions ++= Seq(
+  "-Yrangepos",
+  "-Ywarn-unused",
+  "-P:semanticdb:synthetics:on"
+)
+
 /**
  * Normally the dependencies included in the Databricks Runtime (latest LTS, not ML), or expected to be provided by
  * clients. See https://docs.databricks.com/aws/en/release-notes/
@@ -74,7 +81,23 @@ lazy val root = project
     idePackagePrefix      := Some("dev.fb.dbzpark"),
     Test / scalaSource    := baseDirectory.value / "src/test/scala",
     Compile / scalaSource := baseDirectory.value / "src/main/scala",
-    libraryDependencies ++= allDependencies
+    libraryDependencies ++= allDependencies,
+    Test / javaOptions ++= Seq(
+      "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED",
+      "--add-opens=java.base/java.lang=ALL-UNNAMED",
+      "--add-opens=java.base/java.nio=ALL-UNNAMED",
+      "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
+    ),
+    assemblyPackageScala / assembleArtifact := false,
+    assembly / mainClass                    := None,
+    assembly / assemblyJarName := {
+      val releaseVersion = version.value
+      s"$projectName-$releaseVersion.jar"
+    },
+    assembly / assemblyMergeStrategy := {
+      case PathList("META-INF", _) => MergeStrategy.discard
+      case _                       => MergeStrategy.first
+    }
   )
 
 lazy val getVersion = settingKey[String]("get current version")

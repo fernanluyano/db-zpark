@@ -16,6 +16,8 @@ build:
 	@sbt compile
 	@echo 'running tests...'
 	@sbt test
+	@echo "assembling jar..."
+	@sbt assembly
 	@echo 'done building project'
 
 ### Code formatting task
