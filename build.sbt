@@ -3,9 +3,9 @@ import xerial.sbt.Sonatype._
 import scala.sys.process.Process
 import scala.util.{Failure, Try}
 
-val sparkVersion     = "3.5.4"
-val deltaLakeVersion = "3.2.1"
-val scala2Version    = "2.12.18"
+val sparkVersion     = "3.5.7"
+val deltaLakeVersion = "3.3.1"
+val scala2Version    = "2.13.16"
 val githubUser       = "fernanluyano"
 val projectName      = "db-zpark"
 val email            = "fernando.berlanga1@gmail.com"
@@ -55,15 +55,15 @@ lazy val providedDependencies = Seq(
   "org.apache.kafka"  % "kafka-clients"   % "3.9.0"          % Provided
 )
 lazy val nonProvidedDependencies = Seq(
-  "dev.zio" %% "zio"         % "2.1.16",
-  "dev.zio" %% "zio-logging" % "2.5.0",
-  "dev.zio" %% "zio-json"    % "0.7.39"
+  "dev.zio" %% "zio"         % "2.1.21",
+  "dev.zio" %% "zio-logging" % "2.5.1",
+  "dev.zio" %% "zio-json"    % "0.7.44"
 )
 lazy val testDependencies = Seq(
   "org.scalatest"     %% "scalatest"    % "3.2.19"   % Test,
   "org.scalatestplus" %% "mockito-3-4"  % "3.2.10.0" % Test,
-  "dev.zio"           %% "zio-test"     % "2.1.16"   % Test,
-  "dev.zio"           %% "zio-test-sbt" % "2.1.16"   % Test
+  "dev.zio"           %% "zio-test"     % "2.1.21"   % Test,
+  "dev.zio"           %% "zio-test-sbt" % "2.1.21"   % Test
 )
 lazy val allDependencies = providedDependencies ++ nonProvidedDependencies ++ testDependencies
 
