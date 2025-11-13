@@ -23,7 +23,7 @@ object WorkflowSubtasksRunnerSpec extends ZIOSpecDefault {
 
   // Create test subtasks
   class SuccessfulSubtask(val name: String) extends WorkflowSubtask {
-    override val context = SubtaskContext(name, 1)
+    override val context = SubtaskContext(name)
 
     override def readSource(env: TaskEnvironment): Dataset[_] = {
       import spark.implicits._
@@ -37,7 +37,7 @@ object WorkflowSubtasksRunnerSpec extends ZIOSpecDefault {
   }
 
   class FailingSubtask(val name: String) extends WorkflowSubtask {
-    override val context = SubtaskContext(name, 1)
+    override val context = SubtaskContext(name)
 
     override def readSource(env: TaskEnvironment): Dataset[_] =
       throw new RuntimeException(s"Simulated failure in $name")

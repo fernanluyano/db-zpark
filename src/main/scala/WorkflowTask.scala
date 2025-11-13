@@ -31,9 +31,12 @@ trait WorkflowTask extends ZIOAppDefault {
                )
       } yield ()
 
-    ZIO.attempt(buildTaskEnvironment).flatMap { environment =>
-      _run(environment) @@ appNameAnnotation(environment.appName)
-    }
+    ZIO
+      .attempt(buildTaskEnvironment)
+      .foldZIO(
+        success = e => _run(e) @@ appNameAnnotation(e.appName),
+        failure = e => ZIO.logError(e.getMessage) *> ZIO.fail(e)
+      )
   }
 
   /**
