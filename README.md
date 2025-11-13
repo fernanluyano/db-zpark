@@ -24,10 +24,13 @@ Key features include:
 ## Databricks Runtime Compatibility
 See [Databricks Runtime releases](https://docs.databricks.com/aws/en/release-notes/runtime/#supported-databricks-runtime-lts-releases)
 
+**Versioning Strategy**: db-zpark's major version follows the Databricks Runtime major version (e.g., db-zpark 2.x.x is compatible with Databricks Runtime 17.x LTS).
+
 | db-zpark Version | Databricks Runtime | Spark Version | Delta Lake Version | Scala Version | JDK Version | ZIO Version |
 |------------------|-------------------|---------------|--------------------|---------------|------------|-------------|
 | 0.1.x            | 15.4 LTS          | 3.5.x         | 3.2.x              | 2.12.x        | 17         | 2.x         |
 | 1.x.x            | 16.4 LTS          | 3.5.x         | 3.3.x              | 2.13.x        | 17         | 2.x         |
+| 2.x.x            | 17.3 LTS          | 4.0.x         | 4.0.x              | 2.13.x        | 17         | 2.x         |
 
 ## Installation
 
