@@ -1,5 +1,6 @@
 package dev.fb.dbzpark
 
+import dev.fb.dbzpark.subtask.{ExecutionModel, SubtasksRunner}
 import zio.logging.LogAnnotation
 import zio.{Scope, Task, UIO, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationLong}
 
@@ -15,6 +16,8 @@ trait WorkflowTask extends ZIOAppDefault {
       render = identity
     )
 
+  protected def getExecutionModel: ExecutionModel
+
   /**
    * Runs the workflow task, initializing the environment and executing the task.
    */
@@ -23,7 +26,8 @@ trait WorkflowTask extends ZIOAppDefault {
       for {
         startNanos <- ZIO.succeed(System.nanoTime())
         _          <- ZIO.logInfo(s"Starting task: ${environment.appName}")
-        _ <- startTask
+        execModel  <- ZIO.attempt(getExecutionModel)
+        _ <- execModel.run
                .provide(ZLayer.succeed(environment))
                .foldZIO(
                  success = _ => happyPath(startNanos),
@@ -43,11 +47,6 @@ trait WorkflowTask extends ZIOAppDefault {
    * Builds the task execution environment: external dependencies, basic info about the task, spark session etc.
    */
   protected def buildTaskEnvironment: TaskEnvironment
-
-  /**
-   * Defines the main logic of the task.
-   */
-  protected def startTask: ZIO[TaskEnvironment, Throwable, Unit]
 
   /**
    * Terminates successfully.

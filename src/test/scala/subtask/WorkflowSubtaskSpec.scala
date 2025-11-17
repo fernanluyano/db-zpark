@@ -29,6 +29,7 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
 
   // Create a concrete implementation of WorkflowSubtask for testing
   class TestSubtask extends WorkflowSubtask {
+    override protected val ignoreAndLogFailures: Boolean = false
     override val context = SubtaskContext("test-subtask")
 
     override def preProcess(env: TaskEnvironment): Unit =
@@ -108,6 +109,7 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
     test("subtask handles failures appropriately") {
       // Create a failing subtask
       val failingSubtask = new WorkflowSubtask {
+        override protected val ignoreAndLogFailures: Boolean = false
         override val context = SubtaskContext("failing-subtask")
 
         override def readSource(env: TaskEnvironment): Dataset[_] =
@@ -144,8 +146,8 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
     test("subtask ignores failures") {
       // Create a failing subtask
       val failingSubtask = new WorkflowSubtask {
-        override val context                                 = SubtaskContext("failing-subtask")
         override protected val ignoreAndLogFailures: Boolean = true
+        override val context = SubtaskContext("failing-subtask")
 
         override def readSource(env: TaskEnvironment): Dataset[_] =
           throw new RuntimeException("Simulated read failure")
@@ -177,6 +179,7 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
     test("subtask with default implementations for optional methods") {
       // Create a minimal subtask that only implements required methods
       val minimalSubtask = new WorkflowSubtask {
+        override protected val ignoreAndLogFailures: Boolean = false
         override val context = SubtaskContext("minimal-subtask")
 
         override def readSource(env: TaskEnvironment): Dataset[_] = {

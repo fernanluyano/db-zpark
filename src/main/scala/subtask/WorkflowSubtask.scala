@@ -18,8 +18,8 @@ import zio.{Task, ZIO}
  * Each stage is tracked with appropriate logging for monitoring and diagnostics.
  */
 trait WorkflowSubtask {
-  // Map failures to success, but log the error
-  protected val ignoreAndLogFailures: Boolean = false
+
+  protected val ignoreAndLogFailures: Boolean
 
   /**
    * Executes the subtask with logging and timing.
