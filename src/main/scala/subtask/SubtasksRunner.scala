@@ -1,7 +1,7 @@
 package dev.fb.dbzpark
 package subtask
 
-import zio.{Executor, ZIO}
+import zio.{Executor, Task, ZIO}
 
 /**
  * Base trait for executing a sequence of workflow subtasks. Provides foundational execution behavior with error
@@ -18,7 +18,17 @@ trait SubtasksRunner {
    * @return
    *   A ZIO effect that completes when all subtasks have been processed
    */
-  def run(executor: Executor): ZIO[TaskEnvironment, Throwable, Unit]
+  def run(executor: Option[Executor]): ZIO[TaskEnvironment, Throwable, Unit]
+
+  protected def preconditions: Task[Unit] =
+    ZIO.attempt {
+      subtasks
+        .groupBy(_.getContext.name)
+        .filter(_._2.size > 1)
+    }.flatMap { repeated =>
+      if (repeated.isEmpty) ZIO.succeed()
+      else ZIO.fail(new IllegalStateException(s"subtask names must be unique: \n$repeated"))
+    }
 
   /**
    * Executes a single subtask with error logging.
@@ -29,5 +39,5 @@ trait SubtasksRunner {
    *   A ZIO effect representing the execution of the subtask
    */
   protected def runOne(subtask: WorkflowSubtask): ZIO[TaskEnvironment, Throwable, Unit] =
-    subtask.run.tapError(e => ZIO.logError(s"Subtask ${subtask.context.name} failed: ${e.getMessage}"))
+    subtask.run.tapError(e => ZIO.logError(s"Subtask ${subtask.getContext.name} failed: ${e.getMessage}"))
 }

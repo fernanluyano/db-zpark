@@ -5,8 +5,6 @@ import org.apache.spark.sql.{Dataset, SparkSession}
 import zio._
 import zio.test._
 
-import java.util.concurrent.Executors
-
 object SequentialRunnerSpec extends ZIOSpecDefault {
   // Create a SparkSession for testing
   private val spark = SparkSession
@@ -23,13 +21,10 @@ object SequentialRunnerSpec extends ZIOSpecDefault {
 
   val taskEnvLayer: ZLayer[Any, Nothing, TaskEnvironment] = ZLayer.succeed(new TestTaskEnvironment)
 
-  // Create a test executor
-  private val testExecutor = Executor.fromJavaExecutor(Executors.newSingleThreadExecutor())
-
   // Create test subtasks
   class SuccessfulSubtask(val name: String) extends WorkflowSubtask {
     override protected val ignoreAndLogFailures: Boolean = false
-    override val context = SubtaskContext(name)
+    override def getContext                              = SimpleContext(name)
 
     override def readSource(env: TaskEnvironment): Dataset[_] = {
       import spark.implicits._
@@ -44,7 +39,7 @@ object SequentialRunnerSpec extends ZIOSpecDefault {
 
   class FailingSubtask(val name: String) extends WorkflowSubtask {
     override protected val ignoreAndLogFailures: Boolean = false
-    override val context = SubtaskContext(name)
+    override def getContext                              = SimpleContext(name)
 
     override def readSource(env: TaskEnvironment): Dataset[_] =
       throw new RuntimeException(s"Simulated failure in $name")
@@ -63,7 +58,7 @@ object SequentialRunnerSpec extends ZIOSpecDefault {
 
       // Run the sequential runner
       val runner = SequentialRunner(Seq(task1, task2, task3))
-      runner.run(testExecutor).provide(taskEnvLayer).as(assertTrue(true))
+      runner.run(None).provide(taskEnvLayer).as(assertTrue(true))
     },
     test("should fail when a task fails") {
       // Mix successful and failing subtasks
@@ -73,7 +68,7 @@ object SequentialRunnerSpec extends ZIOSpecDefault {
 
       // Run the sequential runner
       val runner = SequentialRunner(Seq(task1, task2, task3))
-      runner.run(testExecutor).provide(taskEnvLayer).exit.map { exit =>
+      runner.run(None).provide(taskEnvLayer).exit.map { exit =>
         // The runner should fail with an exception from task2
         assertTrue(
           exit.isFailure,

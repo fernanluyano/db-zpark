@@ -36,19 +36,17 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
         override protected def getExecutionModel: ExecutionModel = {
           val subtask = new WorkflowSubtask {
             override protected val ignoreAndLogFailures: Boolean = false
-            override val context = SubtaskContext("test-subtask")
+            override def getContext                              = SimpleContext("test-subtask")
 
-            override def readSource(env: TaskEnvironment): Dataset[_] = {
+            override def readSource(env: TaskEnvironment): Dataset[_] =
               env.sparkSession.sql("select 1 as n")
-            }
 
             override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
 
-            override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
+            override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit =
               outDs.count() // Materialize the dataset
-            }
           }
-          ExecutionModel.singletonSubtask(subtask)
+          ExecutionModel.singleton(subtask)
         }
 
         // Override the bootstrap to use our test logging layer
@@ -69,7 +67,7 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
         override protected def getExecutionModel: ExecutionModel = {
           val subtask = new WorkflowSubtask {
             override protected val ignoreAndLogFailures: Boolean = false
-            override val context = SubtaskContext("failing-subtask")
+            override def getContext                              = SimpleContext("failing-subtask")
 
             override def readSource(env: TaskEnvironment): Dataset[_] =
               throw new RuntimeException("Task failed intentionally")
@@ -78,7 +76,7 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
 
             override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {}
           }
-          ExecutionModel.singletonSubtask(subtask)
+          ExecutionModel.singleton(subtask)
         }
 
         // Override the bootstrap to use our test logging layer
@@ -100,17 +98,16 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
         override protected def getExecutionModel: ExecutionModel = {
           val subtask = new WorkflowSubtask {
             override protected val ignoreAndLogFailures: Boolean = false
-            override val context = SubtaskContext("test-subtask")
+            override def getContext                              = SimpleContext("test-subtask")
 
-            override def readSource(env: TaskEnvironment): Dataset[_] = {
+            override def readSource(env: TaskEnvironment): Dataset[_] =
               env.sparkSession.sql("select 1 as n")
-            }
 
             override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
 
             override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {}
           }
-          ExecutionModel.singletonSubtask(subtask)
+          ExecutionModel.singleton(subtask)
         }
 
         // Override the bootstrap to use our test logging layer

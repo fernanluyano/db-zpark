@@ -29,9 +29,9 @@ trait WorkflowSubtask {
    */
   def run: ZIO[TaskEnvironment, Throwable, Unit] =
     for {
-      _   <- ZIO.logInfo(s"starting subtask ${context.name}")
+      _   <- ZIO.logInfo(s"starting subtask ${getContext.name}")
       env <- ZIO.service[TaskEnvironment]
-      _   <- ZIO.logSpan(s"subtask-${context.name}")(runSubtask(env))
+      _   <- ZIO.logSpan(s"subtask-${getContext.name}")(runSubtask(env))
     } yield ()
 
   /**
@@ -51,14 +51,14 @@ trait WorkflowSubtask {
       _           <- ZIO.attempt(sink(env, transformed))
       _           <- ZIO.logInfo("finished sink")
       _           <- ZIO.attempt(postProcess(env))
-      _           <- ZIO.logInfo(s"finished subtask ${context.name}")
+      _           <- ZIO.logInfo(s"finished subtask ${getContext.name}")
     } yield ()
 
     flow.foldZIO(
       success = _ => ZIO.unit,
       failure = e =>
         if (ignoreAndLogFailures)
-          ZIO.logError(s"Subtask ${context.name} failed: ${e.getMessage}").unit
+          ZIO.logError(s"Subtask ${getContext.name} failed: ${e.getMessage}").unit
         else
           ZIO.fail(e)
     )
@@ -67,7 +67,7 @@ trait WorkflowSubtask {
   /**
    * Metadata about the subtask.
    */
-  val context: SubtaskContext
+  def getContext: SubtaskContext
 
   /**
    * Optional pre-processing step executed before reading data.

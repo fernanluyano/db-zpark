@@ -1,5 +1,7 @@
 package dev.fb.dbzpark
-package subtask
+package subtask.examples
+
+import subtask.{SimpleContext, WorkflowSubtask}
 
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.functions.current_timestamp
@@ -24,7 +26,7 @@ private class SimpleSubtask(
 ) extends WorkflowSubtask {
 
   /** Context metadata for this subtask */
-  override val context: SubtaskContext = SubtaskContext(name)
+  override def getContext: SimpleContext = SimpleContext(name)
 
   /**
    * Optional pre-processing step executed before reading data.

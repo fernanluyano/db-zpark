@@ -13,8 +13,8 @@ class SequentialRunner private (
    * @return
    * A ZIO effect that completes when all subtasks have been processed
    */
-  override def run(executor: Executor): ZIO[TaskEnvironment, Throwable, Unit] =
-    ZIO.foreachDiscard(subtasks)(runOne).onExecutor(executor)
+  override def run(ignored: Option[Executor] = None): ZIO[TaskEnvironment, Throwable, Unit] =
+    ZIO.foreachDiscard(subtasks)(runOne)
 }
 
 object SequentialRunner {

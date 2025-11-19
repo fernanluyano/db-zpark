@@ -1,6 +1,7 @@
 package dev.fb.dbzpark
 
-import dev.fb.dbzpark.subtask.{ExecutionModel, SubtasksRunner}
+import subtask.ExecutionModel
+
 import zio.logging.LogAnnotation
 import zio.{Scope, Task, UIO, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationLong}
 

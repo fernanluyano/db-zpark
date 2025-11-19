@@ -1,5 +1,7 @@
 package dev.fb.dbzpark
-package subtask
+package subtask.examples
+
+import subtask.ExecutionModel
 
 import org.apache.spark.sql.SparkSession
 
@@ -37,9 +39,10 @@ object SimpleApp extends WorkflowTask {
    */
   override protected def getExecutionModel: ExecutionModel = {
     val subtask = new SimpleSubtask(
-      ignoreAndLogFailures = false, // Log failures and stop execution
+      ignoreAndLogFailures = false,
       name = "MySubtask"
     )
-    ExecutionModel.singletonSubtask(subtask)
+    ExecutionModel.singleton(subtask)
   }
+
 }
