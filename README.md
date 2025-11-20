@@ -19,7 +19,7 @@ Key features include:
 - Built-in error handling and reporting
 - JSON-based structured logging
 - Composable subtasks for complex workflows
-- Sequential and parallel task execution
+- Sequential and concurrent task execution with configurable parallelism
 
 ## Databricks Runtime Compatibility
 See [Databricks Runtime releases](https://docs.databricks.com/aws/en/release-notes/runtime/#supported-databricks-runtime-lts-releases)
@@ -57,13 +57,17 @@ With db-zpark, you can solve these challenges using a code-first approach that l
 
 #### Decision Guide
 
-- **Have sequential tasks with dependencies?** → Use [Sequential Subtasks](#2-sequential-subtasks)
-- **Have independent tasks that can run in parallel?** → Use [Parallel Subtasks](#3-parallel-subtasks)
-- **Have a simpler workflow with few steps?** → Use [Simple Workflow Task](#1-simple-workflow-task)
+Choose your execution pattern based on your workflow requirements:
+
+- **Have a simple workflow with few steps?** → Use [Simple Workflow Task](#1-simple-workflow-task)
+- **Need to process tasks one after another?** → Use [Sequential Subtasks](#2-sequential-subtasks)
+- **Have independent tasks that can run in parallel?** → Use [Concurrent Subtasks](#3-concurrent-subtasks)
+    - All tasks can run at once? → Use `NO_DEPENDENCIES` strategy
+    - Tasks grouped with dependencies between groups? → Use `GROUP_DEPENDENCIES` strategy
 
 ### Common Use Cases and Examples
 
-The core of db-zpark is the `WorkflowTask` trait, which provides a structured way to create Spark jobs with built-in logging and error handling:
+The core of db-zpark is the `WorkflowTask` trait, which provides a structured way to create Spark jobs with built-in logging and error handling.
 
 #### 1. Simple Workflow Task
 
@@ -71,23 +75,52 @@ A basic workflow that reads, processes, and writes data.
 
 This example optionally includes logging with Kafka integration for remote monitoring. Use this approach for straightforward data processing tasks or as a foundation for more complex workflows.
 
-[See example](examples/BasicWorkflowTaskExample.scala)
+**Example**: [examples/simple/SimpleApp.scala](examples/simple/SimpleApp.scala)
 
 #### 2. Sequential Subtasks
 
-Process multiple tables in sequence with clear, reusable subtasks.
+Process multiple tasks in sequence with clear, reusable subtasks.
 
-This approach works best when tasks have dependencies or must be processed in a specific order. Each subtask follows the same ETL pattern, though the `transform` function can be customized for different business logic.
+This approach works best when tasks have dependencies or must be processed in a specific order. Each subtask follows a structured ETL pattern (pre-process → read → transform → sink → post-process), though each stage can be customized for different business logic.
 
-[See example](examples/BatchDeltaTablesSequentialExample.scala)
+**Example**: [examples/sequential/MyApp.scala](examples/sequential/MyApp.scala)
 
-#### 3. Parallel Subtasks
+#### 3. Concurrent Subtasks
 
-Process multiple tables concurrently for better performance.
+Process multiple tasks concurrently for better performance.
 
-This approach is ideal for independent tasks where parallel execution can significantly reduce overall processing time. It uses the same subtask structure as the sequential example but leverages concurrent execution.
+This approach offers two execution strategies:
 
-[See example](examples/BatchDeltaTablesParallelExample.scala)
+**3a. NO_DEPENDENCIES Strategy**
+
+All tasks run in parallel with configurable parallelism limits. Ideal when all tasks are independent and can execute simultaneously.
+
+**Example**: [examples/concurrent/MyApp1.scala](examples/concurrent/MyApp1.scala)
+
+**3b. GROUP_DEPENDENCIES Strategy**
+
+Tasks are organized into groups. Tasks within a group run concurrently, but groups execute sequentially in alphabetical order. Perfect for workflows where you have sets of independent tasks with dependencies between those sets.
+
+**Example**: [examples/concurrent/MyApp2.scala](examples/concurrent/MyApp2.scala)
+
+##### Parallelism Control
+
+The concurrent runner provides fine-grained control over parallelism:
+
+```scala
+// maxRunningSubtasks controls fiber-level concurrency (how many tasks run at once)
+val runner = ConcurrentRunner(subtasks, strategy, maxRunningSubtasks = 8)
+
+// Executor controls thread pool size (for blocking operations)
+val executor = Executor.fromJavaExecutor(Executors.newFixedThreadPool(4))
+val model = new ExecutionModel(runner, Some(executor))
+```
+
+**Key distinction**:
+- `maxRunningSubtasks`: Controls how many ZIO fibers run concurrently (lightweight)
+- `executor thread pool`: Controls how many OS threads are available (heavyweight)
+
+Many fibers can run on few threads, making it possible to have high concurrency (100+ tasks) on a small thread pool (4-8 threads).
 
 ### Configuring a JAR Task in Databricks Workflow
 
@@ -115,7 +148,7 @@ To run your WorkflowTask as a JAR task in a Databricks workflow:
     - Select the uploaded JAR
     - Set the Main class name to your object that extends WorkflowTask
       (e.g., `com.mycompany.myapp.MyDataProcessor`)
-    - Like before, you can create several tasks pointing at different entry points (main classes) extending WorkflowTask, if desired.
+    - You can create several tasks pointing at different entry points (main classes) extending WorkflowTask, if desired.
 5. **Configure cluster settings** as needed for your workload
 
 This approach allows you to take advantage of Databricks workflow orchestration while leveraging all the benefits of db-zpark's structured task architecture.

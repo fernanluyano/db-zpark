@@ -37,7 +37,7 @@ trait SubtasksRunner {
    * @return
    *   A Task that succeeds if all names are unique, fails otherwise
    */
-  protected def preconditions: Task[Unit] =
+  protected def checkUniqueNames: Task[Unit] =
     ZIO.attempt {
       subtasks
         .groupBy(_.getContext.name)
@@ -46,18 +46,4 @@ trait SubtasksRunner {
       if (repeated.isEmpty) ZIO.succeed()
       else ZIO.fail(new IllegalStateException(s"subtask names must be unique: \n$repeated"))
     }
-
-  /**
-   * Executes a single subtask with error logging.
-   *
-   * Wraps the subtask execution with error handling that logs failures before propagating them. This ensures errors
-   * are captured in logs even if they cause the workflow to fail.
-   *
-   * @param subtask
-   *   The subtask to execute
-   * @return
-   *   A ZIO effect representing the execution of the subtask
-   */
-  protected def runOne(subtask: WorkflowSubtask): ZIO[TaskEnvironment, Throwable, Unit] =
-    subtask.run.tapError(e => ZIO.logError(s"Subtask ${subtask.getContext.name} failed: ${e.getMessage}"))
 }

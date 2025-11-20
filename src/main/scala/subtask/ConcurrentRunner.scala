@@ -40,9 +40,11 @@ class ConcurrentRunner private (val subtasks: Seq[WorkflowSubtask], val strategy
         }
       }
 
-    strategy match {
-      case NO_DEPENDENCIES    => runGroup("no-group", subtasks, executor)
-      case GROUP_DEPENDENCIES => runAllGroups
+    checkUniqueNames *> {
+      strategy match {
+        case NO_DEPENDENCIES    => runGroup("no-group", subtasks, executor)
+        case GROUP_DEPENDENCIES => runAllGroups
+      }
     }
   }
 
@@ -66,7 +68,7 @@ class ConcurrentRunner private (val subtasks: Seq[WorkflowSubtask], val strategy
     groupedSubtasks: Seq[WorkflowSubtask],
     executor: Option[Executor]
   ): ZIO[TaskEnvironment, Throwable, Unit] = {
-    val effect = ZIO.foreachParDiscard(groupedSubtasks)(runOne).withParallelism(maxRunning)
+    val effect = ZIO.foreachParDiscard(groupedSubtasks)(_.run).withParallelism(maxRunning)
 
     ZIO.logInfo(s"Running group $groupId") *>
       executor.fold(effect)(effect.onExecutor(_))

@@ -20,7 +20,7 @@ import org.apache.spark.sql.functions.current_timestamp
  * @param targetTable
  *   Unity Catalog table to write to (example - not required for all subtasks)
  */
-private class SimpleSubtask(
+class SimpleSubtask(
   override protected val ignoreAndLogFailures: Boolean,
   val name: String,
   private val sourceTable: UcTable,
@@ -60,4 +60,7 @@ private class SimpleSubtask(
    */
   override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit =
     outDs.writeTo(targetTable.getFullyQualifiedName)
+      .option("checkpointLocation", checkpoint_path)
+      .trigger(availableNow=True)
+      .toTable("dev_catalog.dev_database.dev_table"))
 }

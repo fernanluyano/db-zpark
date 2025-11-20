@@ -28,7 +28,7 @@ class SequentialRunner private (
    *   A ZIO effect that completes when all subtasks have been processed
    */
   override def run(ignored: Option[Executor] = None): ZIO[TaskEnvironment, Throwable, Unit] =
-    ZIO.foreachDiscard(subtasks)(runOne)
+    checkUniqueNames *> ZIO.foreachDiscard(subtasks)(_.run)
 }
 
 object SequentialRunner {

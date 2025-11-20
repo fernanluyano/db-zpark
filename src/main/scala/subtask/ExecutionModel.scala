@@ -78,20 +78,23 @@ object ExecutionModel {
    *   - NO_DEPENDENCIES: All tasks run concurrently
    *   - GROUP_DEPENDENCIES: Groups run sequentially, tasks within groups run concurrently
    * @param subtasks
-   *   The subtasks to execute
+   *  The subtasks to execute
    * @param strategy
-   *   Execution strategy (NO_DEPENDENCIES or GROUP_DEPENDENCIES)
+   *  Execution strategy (NO_DEPENDENCIES or GROUP_DEPENDENCIES)
    * @param executor
-   *   Executor for controlling thread pool (default: uses NUM_THREADS environment variable)
+   *  Executor for controlling thread pool (default: uses NUM_THREADS environment variable)
+   * @param maxRunningTasks
+   *  Maximum number of subtasks to run concurrently (default: 4)
    * @return
    *   An ExecutionModel configured for concurrent execution
    */
   def concurrent(
     subtasks: Seq[WorkflowSubtask],
     strategy: Strategy,
-    executor: Executor = defaultExecutor
+    executor: Executor = defaultExecutor,
+    maxRunningTasks: Int = 4
   ): ExecutionModel = {
-    val runner = ConcurrentRunner(subtasks, strategy)
+    val runner = ConcurrentRunner(subtasks, strategy, maxRunningTasks)
     new ExecutionModel(runner, Some(executor))
   }
 }
