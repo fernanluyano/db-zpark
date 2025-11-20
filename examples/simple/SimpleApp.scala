@@ -30,7 +30,7 @@ object SimpleApp extends WorkflowTask {
    * - ExecutionModel.sequential() - runs subtasks one after another
    * - ExecutionModel.concurrent() - runs subtasks in parallel with configurable strategies
    */
-  override protected def getExecutionModel: ExecutionModel = {
+  override protected def getExecutionModel(env: TaskEnvironment): ExecutionModel = {
     val subtask = new SimpleSubtask(
       ignoreAndLogFailures = false,
       name = "MySubtask",

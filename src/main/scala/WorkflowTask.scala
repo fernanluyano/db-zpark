@@ -17,7 +17,7 @@ trait WorkflowTask extends ZIOAppDefault {
       render = identity
     )
 
-  protected def getExecutionModel: ExecutionModel
+  protected def getExecutionModel(env: TaskEnvironment): ExecutionModel
 
   /**
    * Runs the workflow task, initializing the environment and executing the task.
@@ -27,7 +27,7 @@ trait WorkflowTask extends ZIOAppDefault {
       for {
         startNanos <- ZIO.succeed(System.nanoTime())
         _          <- ZIO.logInfo(s"Starting task: ${environment.appName}")
-        execModel  <- ZIO.attempt(getExecutionModel)
+        execModel  <- ZIO.attempt(getExecutionModel(environment))
         _ <- execModel.run
                .provide(ZLayer.succeed(environment))
                .foldZIO(

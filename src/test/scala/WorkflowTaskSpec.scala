@@ -33,7 +33,7 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
       val myTask = new WorkflowTask {
         override protected def buildTaskEnvironment = new TestTaskEnvironment
 
-        override protected def getExecutionModel: ExecutionModel = {
+        override protected def getExecutionModel(env: TaskEnvironment): ExecutionModel = {
           val subtask = new WorkflowSubtask {
             override protected val ignoreAndLogFailures: Boolean = false
             override def getContext                              = SimpleContext("test-subtask")
@@ -64,7 +64,7 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
       val failingTask = new WorkflowTask {
         override protected def buildTaskEnvironment = new TestTaskEnvironment
 
-        override protected def getExecutionModel: ExecutionModel = {
+        override protected def getExecutionModel(env: TaskEnvironment): ExecutionModel = {
           val subtask = new WorkflowSubtask {
             override protected val ignoreAndLogFailures: Boolean = false
             override def getContext                              = SimpleContext("failing-subtask")
@@ -95,7 +95,7 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
         override protected def buildTaskEnvironment =
           throw new RuntimeException("Failed to build environment")
 
-        override protected def getExecutionModel: ExecutionModel = {
+        override protected def getExecutionModel(env: TaskEnvironment): ExecutionModel = {
           val subtask = new WorkflowSubtask {
             override protected val ignoreAndLogFailures: Boolean = false
             override def getContext                              = SimpleContext("test-subtask")
