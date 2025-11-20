@@ -23,7 +23,7 @@ object MyApp extends WorkflowTask {
   /**
    * Declare several tasks that have the same template, and run them sequentially
    */
-  override protected def getExecutionModel: ExecutionModel = {
+  override protected def getExecutionModel(env: TaskEnvironment): ExecutionModel = {
     val baseLocation = "s3://autoloader-source/json-data"
 
     val subtasks = Seq("table_1", "table_2", "table_3").map { t =>

@@ -25,7 +25,7 @@ object MyApp2 extends WorkflowTask {
    * Declare several tasks that have the same template, and run them concurrently
    * assuming we have some dependencies
    */
-  override protected def getExecutionModel: ExecutionModel = {
+  override protected def getExecutionModel(env: ExecutionModel): ExecutionModel = {
     val baseLocation = "s3://autoloader-source/json-data"
 
     // This is a silly way of partitioning the tasks in groups. In a real world
