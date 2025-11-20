@@ -29,7 +29,8 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
 
   // Create a concrete implementation of WorkflowSubtask for testing
   class TestSubtask extends WorkflowSubtask {
-    override val context = SubtaskContext("test-subtask")
+    override protected val ignoreAndLogFailures: Boolean = false
+    override def getContext                              = SimpleContext("test-subtask")
 
     override def preProcess(env: TaskEnvironment): Unit =
       executionOrder += "preProcess"
@@ -108,7 +109,8 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
     test("subtask handles failures appropriately") {
       // Create a failing subtask
       val failingSubtask = new WorkflowSubtask {
-        override val context = SubtaskContext("failing-subtask")
+        override protected val ignoreAndLogFailures: Boolean = false
+        override def getContext                              = SimpleContext("failing-subtask")
 
         override def readSource(env: TaskEnvironment): Dataset[_] =
           throw new RuntimeException("Simulated read failure")
@@ -144,8 +146,8 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
     test("subtask ignores failures") {
       // Create a failing subtask
       val failingSubtask = new WorkflowSubtask {
-        override val context                                 = SubtaskContext("failing-subtask")
         override protected val ignoreAndLogFailures: Boolean = true
+        override def getContext                              = SimpleContext("failing-subtask")
 
         override def readSource(env: TaskEnvironment): Dataset[_] =
           throw new RuntimeException("Simulated read failure")
@@ -171,13 +173,14 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
         // Verify failure was logged
         messages.exists(_.contains("starting subtask failing-subtask")),
         // Verify subtask failure message was logged
-        messages.exists(_.contains(s"Subtask ${failingSubtask.context.name} failed: Simulated read failure"))
+        messages.exists(_.contains(s"Subtask ${failingSubtask.getContext.name} failed: Simulated read failure"))
       )
     },
     test("subtask with default implementations for optional methods") {
       // Create a minimal subtask that only implements required methods
       val minimalSubtask = new WorkflowSubtask {
-        override val context = SubtaskContext("minimal-subtask")
+        override protected val ignoreAndLogFailures: Boolean = false
+        override def getContext                              = SimpleContext("minimal-subtask")
 
         override def readSource(env: TaskEnvironment): Dataset[_] = {
           import spark.implicits._
