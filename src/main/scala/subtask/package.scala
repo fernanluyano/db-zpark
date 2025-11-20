@@ -1,16 +1,40 @@
 package dev.fb.dbzpark
 
+/**
+ * Core types and utilities for the subtask workflow framework.
+ */
 package object subtask {
 
   /**
-   * Context information for a subtask execution.
-   *
-   * This case class encapsulates metadata about a subtask, primarily used for
-   * logging and tracking purposes within a workflow. Each subtask in a workflow
-   * should have a unique context to identify it during execution.
-   *
-   * @param name The unique identifier or descriptive name of the subtask.
-   *             This name is used in logs and metrics to track subtask execution.
+   * Metadata context for a subtask.
    */
-  case class SubtaskContext(name: String)
+  sealed trait SubtaskContext {
+
+    /**
+     * Unique name identifying this subtask.
+     */
+    def name: String
+  }
+
+  /**
+   * Basic context for subtasks without grouping requirements.
+   *
+   * @param name
+   *   Unique identifier for the subtask
+   */
+  case class SimpleContext(name: String) extends SubtaskContext
+
+  /**
+   * Context for subtasks that belong to a logical group.
+   *
+   * When using GROUP_DEPENDENCIES strategy, subtasks within the same group execute concurrently, while different
+   * groups execute sequentially.
+   *
+   * @param name
+   *   Unique identifier for the subtask
+   * @param groupId
+   *   Identifier for the group this subtask belongs to
+   */
+  case class GroupingContext(name: String, groupId: String) extends SubtaskContext
+
 }
