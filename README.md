@@ -37,10 +37,10 @@ See [Databricks Runtime releases](https://docs.databricks.com/aws/en/release-not
 Add db-zpark to your SBT project:
 
 ```scala
-libraryDependencies += "io.github.fernanluyano" %% "db-zpark" % "x.y.z"
+libraryDependencies += "io.github.fernanluyano" %% "db-zpark" % "2.1.1"
 ```
 
-Where `x.y.z` is the latest version available on [Maven Central](https://central.sonatype.com/artifact/io.github.fernanluyano/db-zpark_2.12).
+[Maven Central](https://central.sonatype.com/artifact/io.github.fernanluyano/db-zpark_2.13).
 
 ## Usage
 

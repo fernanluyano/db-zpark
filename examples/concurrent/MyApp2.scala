@@ -1,15 +1,20 @@
 package dev.fb.dbzpark
-package examples.concurrent
+package example.concurent
 
+import logging.DefaultLogging
 import subtask.ConcurrentRunner.GROUP_DEPENDENCIES
 import subtask.ExecutionModel
+import unitycatalog.Catalogs.UcCatalog
+import unitycatalog.Schemas.UcSchema
+import unitycatalog.Tables
+import unitycatalog.Tables.UcTable
 
 import org.apache.spark.sql.SparkSession
 
 /**
  * A job that runs to a bunch of delta tables by ingesting data from S3 json files (streaming)
  */
-object MyApp2 extends WorkflowTask {
+object MyApp2 extends WorkflowTask with DefaultLogging {
 
   override protected def buildTaskEnvironment: TaskEnvironment = new TaskEnvironment {
     override def sparkSession: SparkSession = SparkSession
@@ -25,7 +30,7 @@ object MyApp2 extends WorkflowTask {
    * Declare several tasks that have the same template, and run them concurrently
    * assuming we have some dependencies
    */
-  override protected def getExecutionModel(env: ExecutionModel): ExecutionModel = {
+  override protected def getExecutionModel(env: TaskEnvironment): ExecutionModel = {
     val baseLocation = "s3://autoloader-source/json-data"
 
     // This is a silly way of partitioning the tasks in groups. In a real world
@@ -50,5 +55,21 @@ object MyApp2 extends WorkflowTask {
     // Provide an Executor or let the framework create one for you
     // export NUM_THREADS for a custom number of threads (defaults to 4)
     ExecutionModel.concurrent(subtasks, GROUP_DEPENDENCIES, maxRunningTasks = 2)
+  }
+
+  /** Optional target table for log persistence */
+  override val logsTable: Option[Tables.UcTable] = {
+    val devCatalog = new UcCatalog {
+      override def getSimpleName: String = "dev"
+    }
+    val engSchema = new UcSchema {
+      override val catalog: UcCatalog = devCatalog
+      override def getSimpleName: String = "engineering"
+    }
+
+    Some(new UcTable {
+      override val schema: UcSchema = engSchema
+      override def getSimpleName: String = "app_logs"
+    })
   }
 }

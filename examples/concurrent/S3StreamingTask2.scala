@@ -1,5 +1,5 @@
 package dev.fb.dbzpark
-package examples.concurrent
+package example.concurent
 
 import subtask.{GroupingContext, SubtaskContext, WorkflowSubtask}
 

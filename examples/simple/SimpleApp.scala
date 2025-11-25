@@ -1,5 +1,10 @@
+package dev.fb.dbzpark
+package example.simple
+
 import subtask.ExecutionModel
 
+import dev.fb.dbzpark.logging.DefaultLogging
+import dev.fb.dbzpark.unitycatalog.Tables
 import org.apache.spark.sql.SparkSession
 
 /**
@@ -8,7 +13,7 @@ import org.apache.spark.sql.SparkSession
  * This app creates a single subtask that reads from a bronze table, adds a timestamp, and writes to a silver table.
  * The framework handles execution, logging, and error handling.
  */
-object SimpleApp extends WorkflowTask {
+object SimpleApp extends WorkflowTask with DefaultLogging {
 
   /**
    * Builds the task environment containing the Spark session and application configuration.
@@ -39,4 +44,7 @@ object SimpleApp extends WorkflowTask {
     )
     ExecutionModel.singleton(subtask)
   }
+
+  /** Optional target table for log persistence */
+  override val logsTable: Option[Tables.UcTable] = None
 }
