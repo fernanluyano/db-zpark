@@ -1,3 +1,6 @@
+package dev.fb.dbzpark
+package example
+
 import unitycatalog.Catalogs
 import unitycatalog.Catalogs.UcCatalog
 import unitycatalog.Schemas.UcSchema

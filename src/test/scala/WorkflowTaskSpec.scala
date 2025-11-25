@@ -1,6 +1,5 @@
 package dev.fb.dbzpark
 
-import logging.DefaultLoggers
 import subtask._
 
 import org.apache.spark.sql.{Dataset, SparkSession}
@@ -22,12 +21,6 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
   // Create a layer providing ZIOAppArgs
   val appArgsLayer: ZLayer[Any, Nothing, ZIOAppArgs] = ZIOAppArgs.empty
 
-  // Create a logging layer using the builder
-  val loggingLayer: ZLayer[Any, Config.Error, Unit] = DefaultLoggers
-    .Builder()
-    .withJsonConsole()
-    .build
-
   override def spec = suite("WorkflowTask")(
     test("successful task") {
       val myTask = new WorkflowTask {
@@ -48,9 +41,6 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
           }
           ExecutionModel.singleton(subtask)
         }
-
-        // Override the bootstrap to use our test logging layer
-        override val bootstrap = loggingLayer
       }
 
       for {
@@ -78,9 +68,6 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
           }
           ExecutionModel.singleton(subtask)
         }
-
-        // Override the bootstrap to use our test logging layer
-        override val bootstrap = loggingLayer
       }
 
       for {
@@ -109,9 +96,6 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
           }
           ExecutionModel.singleton(subtask)
         }
-
-        // Override the bootstrap to use our test logging layer
-        override val bootstrap = loggingLayer
       }
 
       for {

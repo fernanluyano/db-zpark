@@ -1,14 +1,16 @@
 package dev.fb.dbzpark
-package examples.sequential
+package example.sequential
 
 import subtask.ExecutionModel
 
+import dev.fb.dbzpark.logging.DefaultLogging
+import dev.fb.dbzpark.unitycatalog.Tables
 import org.apache.spark.sql.SparkSession
 
 /**
  * A job that runs to a bunch of delta tables by ingesting data from S3 json files (streaming)
  */
-object MyApp extends WorkflowTask {
+object MyApp extends WorkflowTask with DefaultLogging {
 
   override protected def buildTaskEnvironment: TaskEnvironment = new TaskEnvironment {
     override def sparkSession: SparkSession = SparkSession
@@ -37,4 +39,7 @@ object MyApp extends WorkflowTask {
 
     ExecutionModel.sequential(subtasks)
   }
+
+  /** Optional target table for log persistence */
+  override val logsTable: Option[Tables.UcTable] = None
 }
