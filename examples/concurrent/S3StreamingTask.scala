@@ -1,5 +1,5 @@
 package dev.fb.dbzpark
-package examples.concurrent
+package example.concurent
 
 import subtask.{SimpleContext, SubtaskContext, WorkflowSubtask}
 
@@ -11,11 +11,11 @@ import org.apache.spark.sql.streaming.Trigger
  * A task to simulate reading json files from a S3 bucket with Autoloader
  */
 class S3StreamingTask(
-  private val name: String,
-  override protected val ignoreAndLogFailures: Boolean,
-  private val sourceS3Location: String,
-  private val targetTable: String
-) extends WorkflowSubtask {
+                       private val name: String,
+                       override protected val ignoreAndLogFailures: Boolean,
+                       private val sourceS3Location: String,
+                       private val targetTable: String
+                     ) extends WorkflowSubtask {
 
   /**
    * Optional pre-processing step. Override only if needed for setup tasks.

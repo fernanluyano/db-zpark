@@ -1,15 +1,17 @@
 package dev.fb.dbzpark
-package examples.concurrent
+package example.concurent
 
 import subtask.ConcurrentRunner.NO_DEPENDENCIES
 import subtask.ExecutionModel
 
+import dev.fb.dbzpark.logging.DefaultLogging
+import dev.fb.dbzpark.unitycatalog.Tables
 import org.apache.spark.sql.SparkSession
 
 /**
  * A job that runs to a bunch of delta tables by ingesting data from S3 json files (streaming)
  */
-object MyApp1 extends WorkflowTask {
+object MyApp1 extends WorkflowTask with DefaultLogging {
 
   override protected def buildTaskEnvironment: TaskEnvironment = new TaskEnvironment {
     override def sparkSession: SparkSession = SparkSession
@@ -40,4 +42,7 @@ object MyApp1 extends WorkflowTask {
     // export NUM_THREADS for a custom number of threads (defaults to 4)
     ExecutionModel.concurrent(subtasks, NO_DEPENDENCIES, maxRunningTasks = 6)
   }
+
+  /** Optional target table for log persistence */
+  override val logsTable: Option[Tables.UcTable] = None
 }

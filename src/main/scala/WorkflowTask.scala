@@ -3,7 +3,7 @@ package dev.fb.dbzpark
 import subtask.ExecutionModel
 
 import zio.logging.LogAnnotation
-import zio.{Scope, Task, UIO, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationLong}
+import zio.{Scope, Task, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationLong}
 
 /**
  * The interface for defining a Databricks workflow task using ZIO. Handles environment setup, execution, and error
@@ -12,7 +12,7 @@ import zio.{Scope, Task, UIO, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationLo
 trait WorkflowTask extends ZIOAppDefault {
   private val appNameAnnotation =
     LogAnnotation[String](
-      name = "appName",
+      name = "app_name",
       combine = (_, a) => a,
       render = identity
     )
@@ -31,8 +31,8 @@ trait WorkflowTask extends ZIOAppDefault {
         _ <- execModel.run
                .provide(ZLayer.succeed(environment))
                .foldZIO(
-                 success = _ => happyPath(startNanos),
-                 failure = e => sadPath(startNanos, e)
+                 success = _ => happyPath(environment, startNanos),
+                 failure = e => sadPath(environment, startNanos, e)
                )
       } yield ()
 
@@ -44,25 +44,29 @@ trait WorkflowTask extends ZIOAppDefault {
       )
   }
 
-  /**
-   * Builds the task execution environment: external dependencies, basic info about the task, spark session etc.
-   */
   protected def buildTaskEnvironment: TaskEnvironment
 
   /**
-   * Terminates successfully.
+   * Hook method called after task execution (success or failure).
+   *
+   * Override this method to perform cleanup, log persistence, or other
+   * finalization tasks. The default implementation does nothing.
+   *
+   * @param env The task environment
+   * @return A Task that completes when post-processing is done
    */
-  private def happyPath(startTimeNanos: Long): UIO[Unit] = {
+  protected def finalizeTask(env: TaskEnvironment): Task[Unit] = ZIO.attempt(env).unit
+
+  private def happyPath(env: TaskEnvironment, startTimeNanos: Long): Task[Unit] = {
     val elapsedSeconds = (System.nanoTime() - startTimeNanos).nanos.toSeconds
-    ZIO.logInfo(s"Task ${buildTaskEnvironment.appName} finished successfully in $elapsedSeconds seconds")
+    ZIO.logInfo(s"Task ${env.appName} finished successfully in $elapsedSeconds seconds") *> finalizeTask(env)
   }
 
-  /**
-   * Terminate the task with failure.
-   */
-  private def sadPath(startTimeNanos: Long, cause: Throwable): Task[Unit] = {
+  private def sadPath(env: TaskEnvironment, startTimeNanos: Long, cause: Throwable): Task[Unit] = {
     val elapsedSeconds = (System.nanoTime() - startTimeNanos).nanos.toSeconds
-    val message        = s"Task ${buildTaskEnvironment.appName} failed in $elapsedSeconds seconds due to: ${cause.getMessage}"
-    ZIO.logInfo(message) *> ZIO.fail(cause)
+    val message        = s"Task ${env.appName} failed in $elapsedSeconds seconds due to: ${cause.getMessage}"
+    ZIO.logError(message) *>
+      finalizeTask(env) *>
+      ZIO.fail(cause)
   }
 }

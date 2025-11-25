@@ -5,7 +5,7 @@ import scala.util.{Failure, Try}
 
 val sparkVersion     = "4.0.1"
 val deltaLakeVersion = "4.0.0"
-val scala2Version    = "2.13.16"
+val scala2Version    = "2.13.17"
 val githubUser       = "fernanluyano"
 val projectName      = "db-zpark"
 val email            = "fernando.berlanga1@gmail.com"
@@ -58,19 +58,18 @@ lazy val providedDependencies = Seq(
   "io.delta"         %% "delta-spark"     % deltaLakeVersion % Provided,
   "org.apache.spark" %% "spark-core"      % sparkVersion     % Provided,
   "org.apache.spark" %% "spark-sql"       % sparkVersion     % Provided,
-  "org.apache.spark" %% "spark-streaming" % sparkVersion     % Provided,
-  "org.apache.kafka"  % "kafka-clients"   % "3.9.0"          % Provided
+  "org.apache.spark" %% "spark-streaming" % sparkVersion     % Provided
 )
 lazy val nonProvidedDependencies = Seq(
   "dev.zio" %% "zio"         % "2.1.22",
   "dev.zio" %% "zio-logging" % "2.5.1",
-  "dev.zio" %% "zio-json"    % "0.7.44"
+  "dev.zio" %% "zio-json"    % "0.7.45"
 )
 lazy val testDependencies = Seq(
   "org.scalatest"     %% "scalatest"    % "3.2.19"   % Test,
   "org.scalatestplus" %% "mockito-3-4"  % "3.2.10.0" % Test,
-  "dev.zio"           %% "zio-test"     % "2.1.21"   % Test,
-  "dev.zio"           %% "zio-test-sbt" % "2.1.21"   % Test
+  "dev.zio"           %% "zio-test"     % "2.1.22"   % Test,
+  "dev.zio"           %% "zio-test-sbt" % "2.1.22"   % Test
 )
 lazy val allDependencies = providedDependencies ++ nonProvidedDependencies ++ testDependencies
 
