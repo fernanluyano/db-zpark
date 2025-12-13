@@ -29,7 +29,7 @@ format:
 .PHONY: release-from-local
 release-from-local:
 	@echo "Releasing..."
-	@sbt verifyReleaseBranch publishSigned sonatypeBundleRelease
+	@sbt publishSigned sonatypeBundleRelease
 
 ### Show help
 .PHONY: help

@@ -3,7 +3,7 @@ package logging
 
 import unitycatalog.Tables.UcTable
 
-import org.apache.spark.sql.{SaveMode, functions => F}
+import org.apache.spark.sql.SaveMode
 import zio.logging.{consoleLogger, fileJsonLogger}
 import zio.{ConfigProvider, LogLevel, Task, ZIO, ZIOAppArgs, ZLayer}
 
@@ -69,24 +69,35 @@ trait DefaultLogging { self: WorkflowTask =>
    * By default, it reads JSON logs, normalizes the app_name field, and appends
    * to the target table.
    */
-  protected def deltaWriter(target: UcTable, env: TaskEnvironment): Unit =
-    env.sparkSession.read
-      .format("json")
-      .schema(getDefaultLogEntrySparkSchema)
-      .load(logFilePath)
-      .withColumn(
-        "app_name",
-        F.coalesce(
-          F.col("app_name"),
-          F.col("custom_fields.app_name"),
-          F.lit("unknown")
-        )
-      )
-      .write
-      .format("delta")
-      .mode(SaveMode.Append)
-      .clusterBy("timestamp")
-      .saveAsTable(target.getFullyQualifiedName)
+  protected def deltaWriter(target: UcTable, env: TaskEnvironment): Task[Unit] = {
+
+    val logs = ZIO.attempt {
+      val _spark = env.sparkSession
+      import _spark.implicits._
+
+      env.sparkSession.read
+        .format("json")
+        .load(logFilePath)
+        .as[LogEntry]
+        .map { entry =>
+          entry.copy(
+            app_name = entry.app_name
+              .orElse(entry.custom_fields.flatMap(_.get("app_name")))
+              .orElse(Some("unknown"))
+          )
+        }
+    }
+
+    ZIO.logInfo("writing logs") *> logs.flatMap { df =>
+      ZIO.attempt {
+        df.write
+          .format("delta")
+          .mode(SaveMode.Append)
+          .clusterBy("timestamp")
+          .saveAsTable(target.getFullyQualifiedName)
+      }
+    }
+  }
 
   /**
    * Persists logs to the configured Delta table.
@@ -96,9 +107,8 @@ trait DefaultLogging { self: WorkflowTask =>
     logsTable match {
       case None => ZIO.logInfo("skipping writing logs")
       case Some(target) =>
-        ZIO.logInfo(s"persisting logs to table ${target.getFullyQualifiedName}") *> ZIO.attempt(
+        ZIO.logInfo(s"persisting logs to table ${target.getFullyQualifiedName}") *>
           deltaWriter(target, env)
-        )
     }
 
   /**
