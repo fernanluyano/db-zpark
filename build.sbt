@@ -1,5 +1,6 @@
-import xerial.sbt.Sonatype._
+import xerial.sbt.Sonatype.*
 
+import java.time.LocalDate
 import scala.sys.process.Process
 import scala.util.{Failure, Try}
 
@@ -107,13 +108,16 @@ getVersion := {
     case scala.util.Success(value) => value.lineStream.head.trim
   }
   println(s"Git Branch: $branchName")
-  val branchParts = branchName.split("/").take(2)
-  val head        = branchParts.head.trim
-  val tail        = branchParts.last.trim
+  val branchParts  = branchName.split("/").take(2)
+  val head         = branchParts.head.trim
+  val tail         = branchParts.last.trim
+  // for feature branches
+  val tailWithDate = tail + "-" + LocalDate.now().toString
+
   head match {
     case "release"            => tail
-    case "develop" | "master" => s"0.0.0-$head-SNAPSHOT"
-    case _                    => s"0.0.0-$tail-SNAPSHOT"
+    case "develop" | "master" => s"0.0.0-$head-RC"
+    case _                    => s"0.0.0-$tailWithDate-RC"
   }
 }
 
