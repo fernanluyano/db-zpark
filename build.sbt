@@ -108,9 +108,9 @@ getVersion := {
     case scala.util.Success(value) => value.lineStream.head.trim
   }
   println(s"Git Branch: $branchName")
-  val branchParts  = branchName.split("/").take(2)
-  val head         = branchParts.head.trim
-  val tail         = branchParts.last.trim
+  val branchParts = branchName.split("/").take(2)
+  val head        = branchParts.head.trim
+  val tail        = branchParts.last.trim
   // for feature branches
   val tailWithDate = tail + "-" + LocalDate.now().toString
 

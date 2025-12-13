@@ -31,13 +31,13 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
             override protected val ignoreAndLogFailures: Boolean = false
             override def getContext                              = SimpleContext("test-subtask")
 
-            override def readSource(env: TaskEnvironment): Dataset[_] =
-              env.sparkSession.sql("select 1 as n")
+            override def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+              ZIO.attempt(env.sparkSession.sql("select 1 as n"))
 
-            override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
+            override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ZIO.attempt(inDs)
 
-            override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit =
-              outDs.count() // Materialize the dataset
+            override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+              ZIO.attempt(outDs.count()).unit
           }
           ExecutionModel.singleton(subtask)
         }
@@ -59,12 +59,13 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
             override protected val ignoreAndLogFailures: Boolean = false
             override def getContext                              = SimpleContext("failing-subtask")
 
-            override def readSource(env: TaskEnvironment): Dataset[_] =
-              throw new RuntimeException("Task failed intentionally")
+            override def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+              ZIO.fail(new RuntimeException("Task failed intentionally"))
 
-            override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
+            override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+              ZIO.attempt(inDs)
 
-            override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {}
+            override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] = ZIO.unit
           }
           ExecutionModel.singleton(subtask)
         }
@@ -87,12 +88,12 @@ object WorkflowTaskSpec extends ZIOSpecDefault {
             override protected val ignoreAndLogFailures: Boolean = false
             override def getContext                              = SimpleContext("test-subtask")
 
-            override def readSource(env: TaskEnvironment): Dataset[_] =
-              env.sparkSession.sql("select 1 as n")
+            override def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+              ZIO.attempt(env.sparkSession.sql("select 1 as n"))
 
-            override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
+            override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ZIO.attempt(inDs)
 
-            override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {}
+            override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] = ZIO.unit
           }
           ExecutionModel.singleton(subtask)
         }
