@@ -5,7 +5,7 @@ import subtask.ConcurrentRunner.{GROUP_DEPENDENCIES, NO_DEPENDENCIES}
 
 import org.apache.spark.sql.{Dataset, SparkSession}
 import zio.test._
-import zio.{Executor, ZIO, ZLayer}
+import zio.{Executor, Task, ZIO, ZLayer}
 
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -77,27 +77,30 @@ object ConcurrentRunnerSpec extends ZIOSpecDefault {
     override protected val ignoreAndLogFailures: Boolean = false
     override def getContext                              = SimpleContext(name)
 
-    override def readSource(env: TaskEnvironment): Dataset[_] = {
+    override def readSource(env: TaskEnvironment): Task[Dataset[_]] = ZIO.attempt {
       import spark.implicits._
       Seq((1, name)).toDF("id", "name")
     }
 
-    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
+    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+      ZIO.succeed(inDs)
 
-    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit =
-      outDs.count() // Materialize the dataset
+    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+      ZIO.attempt(outDs.count()).unit // Materialize the dataset
   }
 
   class FailingSubtask(val name: String) extends WorkflowSubtask {
     override protected val ignoreAndLogFailures: Boolean = false
     override def getContext                              = SimpleContext(name)
 
-    override def readSource(env: TaskEnvironment): Dataset[_] =
-      throw new RuntimeException(s"Simulated failure in $name")
+    override def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+      ZIO.fail(new RuntimeException(s"Simulated failure in $name"))
 
-    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
+    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+      ZIO.succeed(inDs)
 
-    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {}
+    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+      ZIO.unit
   }
 
   // Subtask with GroupingContext for testing GROUP_DEPENDENCIES
@@ -110,7 +113,7 @@ object ConcurrentRunnerSpec extends ZIOSpecDefault {
     override protected val ignoreAndLogFailures: Boolean = false
     override def getContext                              = GroupingContext(name, groupId)
 
-    override def readSource(env: TaskEnvironment): Dataset[_] = {
+    override def readSource(env: TaskEnvironment): Task[Dataset[_]] = ZIO.attempt {
       tracker.foreach(_.recordStart(name))
       // Simulate some work to ensure we can detect concurrency
       Thread.sleep(sleepMillis)
@@ -118,9 +121,10 @@ object ConcurrentRunnerSpec extends ZIOSpecDefault {
       Seq((1, name, groupId)).toDF("id", "name", "group")
     }
 
-    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
+    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+      ZIO.succeed(inDs)
 
-    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
+    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] = ZIO.attempt {
       outDs.count() // Materialize the dataset
       tracker.foreach(_.recordEnd(name))
     }
@@ -130,12 +134,14 @@ object ConcurrentRunnerSpec extends ZIOSpecDefault {
     override protected val ignoreAndLogFailures: Boolean = false
     override def getContext                              = GroupingContext(name, groupId)
 
-    override def readSource(env: TaskEnvironment): Dataset[_] =
-      throw new RuntimeException(s"Simulated failure in $name (group: $groupId)")
+    override def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+      ZIO.fail(new RuntimeException(s"Simulated failure in $name (group: $groupId)"))
 
-    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
+    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+      ZIO.succeed(inDs)
 
-    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {}
+    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+      ZIO.unit
   }
 
   // Subtask with tracking for NO_DEPENDENCIES strategy
@@ -147,7 +153,7 @@ object ConcurrentRunnerSpec extends ZIOSpecDefault {
     override protected val ignoreAndLogFailures: Boolean = false
     override def getContext                              = SimpleContext(name)
 
-    override def readSource(env: TaskEnvironment): Dataset[_] = {
+    override def readSource(env: TaskEnvironment): Task[Dataset[_]] = ZIO.attempt {
       tracker.foreach(_.recordStart(name))
       // Simulate some work to ensure we can detect concurrency
       Thread.sleep(sleepMillis)
@@ -155,9 +161,10 @@ object ConcurrentRunnerSpec extends ZIOSpecDefault {
       Seq((1, name)).toDF("id", "name")
     }
 
-    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
+    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+      ZIO.succeed(inDs)
 
-    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
+    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] = ZIO.attempt {
       outDs.count() // Materialize the dataset
       tracker.foreach(_.recordEnd(name))
     }
