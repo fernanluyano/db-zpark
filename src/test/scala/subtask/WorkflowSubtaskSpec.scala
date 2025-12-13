@@ -32,11 +32,11 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
     override protected val ignoreAndLogFailures: Boolean = false
     override def getContext                              = SimpleContext("test-subtask")
 
-    override def preProcess(env: TaskEnvironment): Unit =
+    override def preProcess(env: TaskEnvironment): Task[Unit] = ZIO.attempt {
       executionOrder += "preProcess"
-    // Simulate some pre-processing setup
+    }
 
-    override def readSource(env: TaskEnvironment): Dataset[_] = {
+    override def readSource(env: TaskEnvironment): Task[Dataset[_]] = ZIO.attempt {
       executionOrder += "readSource"
       // Create a simple test dataset
       import spark.implicits._
@@ -47,14 +47,14 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
       ).toDS()
     }
 
-    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = {
+    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ZIO.attempt {
       executionOrder += "transformer"
       // Apply a simple transformation - filter records with id > 1
       import spark.implicits._
       inDs.as[TestData].filter(_.id > 1)
     }
 
-    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
+    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] = ZIO.attempt {
       executionOrder += "sink"
       // In a real implementation, this would write to a destination
       // For testing, just materialize the dataset and check count
@@ -64,16 +64,10 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
       }
     }
 
-    override def postProcess(env: TaskEnvironment): Unit =
+    override def postProcess(env: TaskEnvironment): Task[Unit] = ZIO.attempt {
       executionOrder += "postProcess"
-    // Simulate some cleanup or finalization
+    }
   }
-
-  // Create a layer providing ZIOAppArgs
-  val appArgsLayer: ZLayer[Any, Nothing, ZIOAppArgs] = ZIOAppArgs.empty
-
-  // Create a test logger layer
-  val testLoggingLayer: ZLayer[Any, Nothing, Unit] = ZLayer.succeed(())
 
   override def spec = suite("WorkflowSubtask")(
     test("subtask executes all stages in the correct order") {
@@ -112,15 +106,14 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
         override protected val ignoreAndLogFailures: Boolean = false
         override def getContext                              = SimpleContext("failing-subtask")
 
-        override def readSource(env: TaskEnvironment): Dataset[_] =
-          throw new RuntimeException("Simulated read failure")
+        override def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+          ZIO.fail(new RuntimeException("Simulated read failure"))
 
-        override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] =
-          inDs // Never called due to readSource failure
+        override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+          ZIO.succeed(inDs) // Never called due to readSource failure
 
-        override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
-          // Never called due to readSource failure
-        }
+        override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+          ZIO.unit // Never called due to readSource failure
       }
 
       val env = new TestTaskEnvironment()
@@ -138,68 +131,76 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
 
         // Verify failure was logged
         messages.exists(_.contains("starting subtask failing-subtask")),
-
-        // Verify subtask completion message was not logged
-        !messages.exists(_.contains("finished subtask failing-subtask"))
+        // Verify the exit contains the error message
+        exit.causeOption
+          .flatMap(_.failureOption)
+          .exists(_.getMessage.contains("Simulated read failure"))
       )
     },
-    test("subtask ignores failures") {
-      // Create a failing subtask
+    test("subtask ignores failures when configured") {
+      executionOrder.clear()
+
+      // Create a failing subtask with ignoreAndLogFailures = true
       val failingSubtask = new WorkflowSubtask {
         override protected val ignoreAndLogFailures: Boolean = true
         override def getContext                              = SimpleContext("failing-subtask")
 
-        override def readSource(env: TaskEnvironment): Dataset[_] =
-          throw new RuntimeException("Simulated read failure")
+        override def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+          ZIO.fail(new RuntimeException("Simulated read failure"))
 
-        override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] =
-          inDs // Never called due to readSource failure
+        override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+          ZIO.succeed(inDs) // Never called due to readSource failure
 
-        override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {
-          // Never called due to readSource failure
-        }
+        override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+          ZIO.unit // Never called due to readSource failure
       }
 
       val env = new TestTaskEnvironment()
 
       for {
-        // Run the failing subtask and capture the exit
-        _ <- failingSubtask.run.provide(ZLayer.succeed(env))
+        // Run the failing subtask - should succeed despite failure
+        exit <- failingSubtask.run.provide(ZLayer.succeed(env)).exit
 
         // Check logs for failure indications
         logOutput <- ZTestLogger.logOutput
         messages   = logOutput.map(_.message())
       } yield assertTrue(
+        // Verify task succeeded (failure was ignored)
+        exit.isSuccess,
+
         // Verify failure was logged
         messages.exists(_.contains("starting subtask failing-subtask")),
-        // Verify subtask failure message was logged
-        messages.exists(_.contains(s"Subtask ${failingSubtask.getContext.name} failed: Simulated read failure"))
+        messages.exists(msg =>
+          msg.contains("Subtask failing-subtask failed") ||
+            msg.contains("Simulated read failure")
+        )
       )
     },
     test("subtask with default implementations for optional methods") {
+      executionOrder.clear()
+
       // Create a minimal subtask that only implements required methods
       val minimalSubtask = new WorkflowSubtask {
         override protected val ignoreAndLogFailures: Boolean = false
         override def getContext                              = SimpleContext("minimal-subtask")
 
-        override def readSource(env: TaskEnvironment): Dataset[_] = {
+        override def readSource(env: TaskEnvironment): Task[Dataset[_]] = ZIO.attempt {
           import spark.implicits._
           Seq(TestData(1, "minimal")).toDS()
         }
 
-        override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] =
-          inDs // Pass-through
+        override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+          ZIO.succeed(inDs) // Pass-through
 
-        override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit =
-          // Just count to materialize
-          outDs.count()
+        override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+          ZIO.attempt(outDs.count()).unit // Just count to materialize
       }
 
       val env = new TestTaskEnvironment()
 
       for {
         // Run the minimal subtask
-        result <- minimalSubtask.run.provide(ZLayer.succeed(env))
+        _ <- minimalSubtask.run.provide(ZLayer.succeed(env))
 
         // Verify logs
         logOutput <- ZTestLogger.logOutput

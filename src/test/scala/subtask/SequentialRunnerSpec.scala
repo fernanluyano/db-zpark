@@ -26,27 +26,30 @@ object SequentialRunnerSpec extends ZIOSpecDefault {
     override protected val ignoreAndLogFailures: Boolean = false
     override def getContext                              = SimpleContext(name)
 
-    override def readSource(env: TaskEnvironment): Dataset[_] = {
+    override def readSource(env: TaskEnvironment): Task[Dataset[_]] = ZIO.attempt {
       import spark.implicits._
       Seq((1, name)).toDF("id", "name")
     }
 
-    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
+    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+      ZIO.succeed(inDs)
 
-    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit =
-      outDs.count() // Materialize the dataset
+    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+      ZIO.attempt(outDs.count()).unit // Materialize the dataset
   }
 
   class FailingSubtask(val name: String) extends WorkflowSubtask {
     override protected val ignoreAndLogFailures: Boolean = false
     override def getContext                              = SimpleContext(name)
 
-    override def readSource(env: TaskEnvironment): Dataset[_] =
-      throw new RuntimeException(s"Simulated failure in $name")
+    override def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+      ZIO.fail(new RuntimeException(s"Simulated failure in $name"))
 
-    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] = inDs
+    override def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+      ZIO.succeed(inDs)
 
-    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit = {}
+    override def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+      ZIO.unit
   }
 
   override def spec = suite("SequentialRunner")(
@@ -58,7 +61,16 @@ object SequentialRunnerSpec extends ZIOSpecDefault {
 
       // Run the sequential runner
       val runner = SequentialRunner(Seq(task1, task2, task3))
-      runner.run(None).provide(taskEnvLayer).as(assertTrue(true))
+
+      for {
+        _         <- runner.run(None).provide(taskEnvLayer)
+        logOutput <- ZTestLogger.logOutput
+        messages   = logOutput.map(_.message())
+      } yield assertTrue(
+        messages.exists(_.contains("task1")),
+        messages.exists(_.contains("task2")),
+        messages.exists(_.contains("task3"))
+      )
     },
     test("should fail when a task fails") {
       // Mix successful and failing subtasks
@@ -68,15 +80,23 @@ object SequentialRunnerSpec extends ZIOSpecDefault {
 
       // Run the sequential runner
       val runner = SequentialRunner(Seq(task1, task2, task3))
-      runner.run(None).provide(taskEnvLayer).exit.map { exit =>
-        // The runner should fail with an exception from task2
-        assertTrue(
-          exit.isFailure,
-          exit.causeOption
-            .flatMap(cause => cause.failureOption)
-            .exists(_.getMessage.contains("Simulated failure in task2"))
-        )
-      }
+
+      for {
+        exit      <- runner.run(None).provide(taskEnvLayer).exit
+        logOutput <- ZTestLogger.logOutput
+        messages   = logOutput.map(_.message())
+      } yield
+      // The runner should fail with an exception from task2
+      assertTrue(
+        exit.isFailure,
+        exit.causeOption
+          .flatMap(cause => cause.failureOption)
+          .exists(_.getMessage.contains("Simulated failure in task2")),
+        // task1 should have started
+        messages.exists(_.contains("task1")),
+        // task2 should have failed
+        messages.exists(msg => msg.contains("task2") || msg.contains("Simulated failure"))
+      )
     }
   )
 }

@@ -49,13 +49,13 @@ trait WorkflowSubtask {
    */
   private def runSubtask(env: TaskEnvironment): Task[Unit] = {
     val flow = for {
-      _           <- ZIO.attempt(preProcess(env))
+      _           <- preProcess(env)
       _           <- ZIO.logInfo("finished pre-processing")
-      source      <- ZIO.attempt(readSource(env))
-      transformed <- ZIO.attempt(transformer(env, source))
-      _           <- ZIO.attempt(sink(env, transformed))
+      source      <- readSource(env)
+      transformed <- transformer(env, source)
+      _           <- sink(env, transformed)
       _           <- ZIO.logInfo("finished sink")
-      _           <- ZIO.attempt(postProcess(env))
+      _           <- postProcess(env)
       _           <- ZIO.logInfo(s"finished subtask ${getContext.name}")
     } yield ()
 
@@ -86,7 +86,7 @@ trait WorkflowSubtask {
    * @param env
    *   The task environment
    */
-  protected def preProcess(env: TaskEnvironment): Unit = ()
+  protected def preProcess(env: TaskEnvironment): Task[Unit] = ZIO.unit
 
   /**
    * Reads data from a source.
@@ -99,7 +99,7 @@ trait WorkflowSubtask {
    * @return
    *   A Dataset containing the source data
    */
-  protected def readSource(env: TaskEnvironment): Dataset[_]
+  protected def readSource(env: TaskEnvironment): Task[Dataset[_]]
 
   /**
    * Transforms the input dataset.
@@ -114,7 +114,7 @@ trait WorkflowSubtask {
    * @return
    *   A transformed dataset
    */
-  protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_]
+  protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]]
 
   /**
    * Writes the transformed data to a destination.
@@ -127,7 +127,7 @@ trait WorkflowSubtask {
    * @param outDs
    *   The dataset to write
    */
-  protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit
+  protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit]
 
   /**
    * Optional post-processing step executed after all other steps complete.
@@ -138,5 +138,5 @@ trait WorkflowSubtask {
    * @param env
    *   The task environment
    */
-  protected def postProcess(env: TaskEnvironment): Unit = ()
+  protected def postProcess(env: TaskEnvironment): Task[Unit] = ZIO.unit
 }
