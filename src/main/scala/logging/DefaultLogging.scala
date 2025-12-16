@@ -104,7 +104,7 @@ trait DefaultLogging { self: WorkflowTask =>
 
 object DefaultLogging {
 
-  private[logging] def readLogs(spark: SparkSession, filePath: String): DataFrame = {
+  private[logging] def readLogs(spark: SparkSession, filePath: String): DataFrame =
     spark.read
       .format("json")
       .schema(getDefaultLogEntrySparkSchema)
@@ -117,5 +117,4 @@ object DefaultLogging {
           F.lit("unknown")
         )
       )
-  }
 }
