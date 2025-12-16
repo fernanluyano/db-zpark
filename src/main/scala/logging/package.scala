@@ -1,29 +1,27 @@
 package dev.fb.dbzpark
 
+import org.apache.spark.sql.types._
+
 package object logging {
 
   /**
-   * Represents a log entry with all its fields.
+   * Creates and returns a Spark SQL schema that corresponds to the default configuration used.
    *
-   * @param app_name The name of the application
-   * @param timestamp The timestamp of the log entry
-   * @param level The log level (e.g., INFO, WARN, ERROR)
-   * @param thread The thread name
-   * @param message The log message
-   * @param cause The cause/exception if any
-   * @param logger_name The name of the logger
-   * @param spans Tracing spans information
-   * @param custom_fields Additional custom fields
+   * @return
+   *   A StructType representing the Spark SQL schema for log entries
    */
-  case class LogEntry(
-    app_name: Option[String] = None,
-    timestamp: Option[java.sql.Timestamp] = None,
-    level: Option[String] = None,
-    thread: Option[String] = None,
-    message: Option[String] = None,
-    cause: Option[String] = None,
-    logger_name: Option[String] = None,
-    spans: Option[Map[String, String]] = None,
-    custom_fields: Option[Map[String, String]] = None
-  )
+  def getDefaultLogEntrySparkSchema: StructType =
+    StructType(
+      Seq(
+        StructField("app_name", StringType, nullable = true),
+        StructField("timestamp", TimestampType, nullable = true),
+        StructField("level", StringType, nullable = true),
+        StructField("thread", StringType, nullable = true),
+        StructField("message", StringType, nullable = true),
+        StructField("cause", StringType, nullable = true),
+        StructField("logger_name", StringType, nullable = true),
+        StructField("spans", MapType(StringType, StringType), nullable = true),
+        StructField("custom_fields", MapType(StringType, StringType), nullable = true)
+      )
+    )
 }
