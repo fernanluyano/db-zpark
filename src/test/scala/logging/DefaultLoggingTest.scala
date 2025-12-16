@@ -13,7 +13,8 @@ class DefaultLoggingTest extends AnyFunSuiteLike with BeforeAndAfterAll {
   var spark: SparkSession = _
 
   override def beforeAll(): Unit = {
-    spark = SparkSession.builder()
+    spark = SparkSession
+      .builder()
       .appName("DefaultLoggingTest")
       .master("local[*]")
       .getOrCreate()
@@ -21,11 +22,10 @@ class DefaultLoggingTest extends AnyFunSuiteLike with BeforeAndAfterAll {
     spark.sparkContext.setLogLevel("WARN")
   }
 
-  override def afterAll(): Unit = {
+  override def afterAll(): Unit =
     if (spark != null) {
       spark.stop()
     }
-  }
 
   test("default logs should read and extract app_name from custom_fields") {
     saveLogs()
@@ -64,10 +64,9 @@ class DefaultLoggingTest extends AnyFunSuiteLike with BeforeAndAfterAll {
     )
 
     val writer = new PrintWriter(filePath)
-    try {
+    try
       logEntries.foreach(entry => writer.println(entry))
-    } finally {
+    finally
       writer.close()
-    }
   }
 }
