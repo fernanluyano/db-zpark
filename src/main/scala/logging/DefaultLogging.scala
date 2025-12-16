@@ -1,9 +1,10 @@
 package dev.fb.dbzpark
 package logging
 
+import logging.DefaultLogging.readLogs
 import unitycatalog.Tables.UcTable
 
-import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession, functions => F}
 import zio.logging.{consoleLogger, fileJsonLogger}
 import zio.{ConfigProvider, LogLevel, Task, ZIO, ZIOAppArgs, ZLayer}
 
@@ -70,23 +71,7 @@ trait DefaultLogging { self: WorkflowTask =>
    * to the target table.
    */
   protected def deltaWriter(target: UcTable, env: TaskEnvironment): Task[Unit] = {
-
-    val logs = ZIO.attempt {
-      val _spark = env.sparkSession
-      import _spark.implicits._
-
-      env.sparkSession.read
-        .format("json")
-        .load(logFilePath)
-        .as[LogEntry]
-        .map { entry =>
-          entry.copy(
-            app_name = entry.app_name
-              .orElse(entry.custom_fields.flatMap(_.get("app_name")))
-              .orElse(Some("unknown"))
-          )
-        }
-    }
+    val logs = ZIO.attempt(readLogs(env.sparkSession, logFilePath))
 
     ZIO.logInfo("writing logs") *> logs.flatMap { df =>
       ZIO.attempt {
@@ -115,4 +100,22 @@ trait DefaultLogging { self: WorkflowTask =>
    * Override finalizeTask to automatically persist logs after execution.
    */
   override protected def finalizeTask(env: TaskEnvironment): Task[Unit] = writeLogs(env)
+}
+
+object DefaultLogging {
+
+  private[logging] def readLogs(spark: SparkSession, filePath: String): DataFrame = {
+    spark.read
+      .format("json")
+      .schema(getDefaultLogEntrySparkSchema)
+      .load(filePath)
+      .withColumn(
+        "app_name",
+        F.coalesce(
+          F.col("app_name"),
+          F.col("custom_fields.app_name"),
+          F.lit("unknown")
+        )
+      )
+  }
 }
