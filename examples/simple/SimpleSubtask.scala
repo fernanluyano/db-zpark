@@ -6,6 +6,8 @@ import unitycatalog.Tables.UcTable
 
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.functions.current_timestamp
+import zio.Task
+import zio.ZIO
 
 /**
  * Example implementation of a WorkflowSubtask that reads from a source table, transforms the data, and writes to a
@@ -24,45 +26,49 @@ import org.apache.spark.sql.functions.current_timestamp
  *   Unity Catalog table to write to (example - not required for all subtasks)
  */
 class SimpleSubtask(
-                     override protected val ignoreAndLogFailures: Boolean,
-                     val name: String,
-                     private val sourceTable: UcTable,
-                     private val targetTable: UcTable
-                   ) extends WorkflowSubtask {
+  override protected val ignoreAndLogFailures: Boolean,
+  val name: String,
+  private val sourceTable: UcTable,
+  private val targetTable: UcTable
+) extends WorkflowSubtask {
 
   override def getContext: SimpleContext = SimpleContext(name)
 
   /**
    * Optional pre-processing step. Override only if needed for setup tasks.
    */
-  override protected def preProcess(env: TaskEnvironment): Unit =
-    println("optional")
+  override protected def preProcess(env: TaskEnvironment): Task[Unit] =
+    ZIO.logInfo("optional")
 
   /**
    * Optional post-processing step. Override only if needed for cleanup tasks.
    */
-  override protected def postProcess(env: TaskEnvironment): Unit =
-    println("optional")
+  override protected def postProcess(env: TaskEnvironment): Task[Unit] =
+    ZIO.logInfo("optional")
 
   /**
    * Reads data from the source Delta table.
    */
-  override protected def readSource(env: TaskEnvironment): Dataset[_] =
-    env.sparkSession.read
-      .format("delta")
-      .table(sourceTable.getFullyQualifiedName)
+  override protected def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+    ZIO.attempt {
+      env.sparkSession.read
+        .format("delta")
+        .table(sourceTable.getFullyQualifiedName)
+    }
 
   /**
    * Transforms the input data by adding an ingestion timestamp.
    */
-  override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Dataset[_] =
-    inDs.withColumn("_ingestion_time", current_timestamp())
+  override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+    ZIO.attempt(inDs.withColumn("_ingestion_time", current_timestamp()))
 
   /**
    * Writes the transformed data to the target table.
    */
-  override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Unit =
-    outDs.write
-      .format("delta")
-      .saveAsTable(targetTable.getFullyQualifiedName)
+  override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+    ZIO.attempt {
+      outDs.write
+        .format("delta")
+        .saveAsTable(targetTable.getFullyQualifiedName)
+    }
 }

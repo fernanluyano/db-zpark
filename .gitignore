@@ -1,10 +1,10 @@
 project/target
 project/project
-.idea
-.bsp
+project/metals.sbt
+.idea/
+.metals/
+.bsp/
+.bloop/
 target
-# Ignore Gradle project-specific cache directory
 .gradle
-
-# Ignore Gradle build output directory
 build
