@@ -155,19 +155,15 @@ This approach allows you to take advantage of Databricks workflow orchestration 
 
 ### Configuring Logging (optional)
 
-db-zpark provides a flexible logging system with console and Kafka options. This example creates a default logger
-that sends the output in JSON format to the console and also to a Kafka topic in MSK (assuming your config is correct).
-To enable this, just override the `bootstrap` val. If not specified, it will use the default console logger only.
-
-
+db-zpark provides a flexible logging system with console and Kafka options. To enable custom logging, 
+create a trait that extends `DefaultLogging` and mix it into your WorkflowTask. The default implementation provides JSON console logging out of the box.
 ```scala
-import logging.{DefaultLoggers, KafkaLogger, KafkaLoggerContext}
+import logging.DefaultLogging
 
-import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.spark.sql.SparkSession
 import zio.{ZIO, ZIOAppArgs, ZLayer}
 
-object MySparkJobWithKafkaLogging extends WorkflowTask {
+object MySparkJobWithLogging extends WorkflowTask with DefaultLogging {
   class MyTaskEnvironment(val sparkSession: SparkSession, val appName: String) extends TaskEnvironment
 
   override protected def buildTaskEnvironment: TaskEnvironment = {
@@ -181,29 +177,6 @@ object MySparkJobWithKafkaLogging extends WorkflowTask {
 
   // define the spark logic, see example above
   override protected def startTask: ZIO[TaskEnvironment, Throwable, Unit] = ZIO.unit
-
-  override val bootstrap: ZLayer[ZIOAppArgs, Any, Any] = DefaultLoggers
-    .Builder()
-    .withJsonConsole()
-    .withKafkaLogger(createKafkaLogger)
-    .build
-
-  private def createKafkaLogger: KafkaLogger = {
-    val servers = sys.env("KAFKA_SERVERS")
-    val props = new Properties()
-    props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, servers)
-    props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
-    props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, classOf[StringSerializer].getName)
-    props.put("security.protocol", "SASL_SSL")
-    props.put("sasl.mechanism", "AWS_MSK_IAM")
-    props.put("sasl.jaas.config", "software.amazon.msk.auth.iam.IAMLoginModule required;")
-    props.put("sasl.client.callback.handler.class", "software.amazon.msk.auth.iam.IAMClientCallbackHandler")
-
-    val producer = new KafkaProducer[String, String](props)
-    val context = KafkaLoggerContext(topic = "spark-logs", appName = "My Spark Job")
-
-    KafkaLogger(producer, context)
-  }
 }
 ```
 
