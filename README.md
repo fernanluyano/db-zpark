@@ -42,6 +42,34 @@ libraryDependencies += "io.github.fernanluyano" %% "db-zpark" % "2.1.1"
 
 [Maven Central](https://central.sonatype.com/artifact/io.github.fernanluyano/db-zpark_2.13).
 
+## Spark Session Configuration
+
+Use more convenient and safer alterntives for configuring Spark sessions with validation at construction time.
+
+### Building a Spark Session
+
+```scala
+import spark.BuildProperty._
+import spark.SparkSessionBuilder
+
+val spark = SparkSessionBuilder()
+  .set(Master(Some("local[*]")))
+  .set(AppName(Some("MyApp")))
+  .set(Serializer(Some("org.apache.spark.serializer.KryoSerializer")))
+  .build
+```
+
+### Modifying Runtime Configuration
+
+```scala
+import spark.RuntimeProperty._
+import spark.SparkPropertySetter
+
+SparkPropertySetter(spark)
+  .set(MaxFilesPerTrigger(Some("500")))
+  .set(MaxBytesPerTrigger(Some("2g")))
+```
+
 ## Usage
 
 ### Why use this instead of using Jar tasks within a workflow?
@@ -155,7 +183,7 @@ This approach allows you to take advantage of Databricks workflow orchestration 
 
 ### Configuring Logging (optional)
 
-db-zpark provides a flexible logging system with console and Kafka options. To enable custom logging, 
+db-zpark provides a flexible logging system with console and Kafka options. To enable custom logging,
 create a trait that extends `DefaultLogging` and mix it into your WorkflowTask. The default implementation provides JSON console logging out of the box.
 ```scala
 import logging.DefaultLogging
