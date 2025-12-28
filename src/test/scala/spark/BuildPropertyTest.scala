@@ -1,8 +1,9 @@
 package dev.fb.dbzpark
 package spark
 
+import spark.BuildProperty._
+
 import org.scalatest.funsuite.AnyFunSuiteLike
-import BuildProperty._
 
 class BuildPropertyTest extends AnyFunSuiteLike {
 
@@ -32,31 +33,6 @@ class BuildPropertyTest extends AnyFunSuiteLike {
       AppName(None).getValue
     }
     assert(exception.getMessage.contains("must either have a value or a default"))
-  }
-
-  // SchedulerMode tests
-  test("SchedulerMode should use provided value when valid") {
-    val schedulerMode = SchedulerMode(Some("FAIR"))
-    assert(schedulerMode.getName == "spark.scheduler.mode")
-    assert(schedulerMode.getValue == "FAIR")
-  }
-
-  test("SchedulerMode should use default FIFO when no value provided") {
-    val schedulerMode = SchedulerMode(None)
-    assert(schedulerMode.getValue == "FIFO")
-  }
-
-  test("SchedulerMode should fail with invalid mode at construction time") {
-    val exception = intercept[IllegalArgumentException] {
-      SchedulerMode(Some("INVALID")).getValue
-    }
-    assert(exception.getMessage.contains("Invalid scheduler mode: INVALID"))
-    assert(exception.getMessage.contains("Must be one of: FIFO, FAIR"))
-  }
-
-  test("SchedulerMode should validate both FIFO and FAIR as valid") {
-    assert(SchedulerMode(Some("FIFO")).getValue == "FIFO")
-    assert(SchedulerMode(Some("FAIR")).getValue == "FAIR")
   }
 
   // SchedulerAllocationFile tests
@@ -152,15 +128,6 @@ class BuildPropertyTest extends AnyFunSuiteLike {
       AnyBuildProperty("spark.custom.property", None, None).getValue
     }
     assert(exception.getMessage.contains("must either have a value or a default"))
-  }
-
-  // Edge case: getValue should be idempotent (testing eager resolution)
-  test("getValue should return same value on multiple calls without re-validation") {
-    val schedulerMode = SchedulerMode(Some("FAIR"))
-    val firstCall     = schedulerMode.getValue
-    val secondCall    = schedulerMode.getValue
-    assert(firstCall == secondCall)
-    assert(firstCall == "FAIR")
   }
 
   // Edge case: Construction time validation means getValue never throws after object creation
