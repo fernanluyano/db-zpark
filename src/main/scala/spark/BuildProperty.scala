@@ -31,31 +31,26 @@ object BuildProperty {
   final case class AppName(
     override val value: Option[String]
   ) extends SparkBuildProperty {
-    override val name: String                 = "spark.app.name"
+    override val name: String                 = PropertyName.APP_NAME
     override val defaultValue: Option[String] = None
   }
 
   /**
-   * Scheduler mode for task ordering within a job.
-   *
-   * Defaults to FIFO for predictable, simple behavior. Override with FAIR when running
-   * concurrent jobs that need equal resource sharing (common in notebook/interactive environments).
-   * Validation prevents typos that would silently fall back to default behavior.
+   * FIFO scheduler mode for predictable, simple task ordering within a job.
    */
-  final case class SchedulerMode(
-    override val value: Option[String]
-  ) extends SparkBuildProperty {
-    override val name: String                 = "spark.scheduler.mode"
-    override val defaultValue: Option[String] = Some("FIFO")
+  case object SchedulerModeFIFO extends SparkBuildProperty {
+    override val name: String                 = PropertyName.SCHEDULER_MODE
+    override val value: Option[String]        = Some("FIFO")
+    override val defaultValue: Option[String] = None
+  }
 
-    override def validate(propertyValue: String): Unit = {
-      val validModes = Set("FIFO", "FAIR")
-      if (!validModes.contains(propertyValue)) {
-        throw new IllegalArgumentException(
-          s"Invalid scheduler mode: $propertyValue. Must be one of: ${validModes.mkString(", ")}"
-        )
-      }
-    }
+  /**
+   * FAIR scheduler mode for equal resource sharing across concurrent jobs.
+   */
+  case object SchedulerModeFAIR extends SparkBuildProperty {
+    override val name: String                 = PropertyName.SCHEDULER_MODE
+    override val value: Option[String]        = Some("FAIR")
+    override val defaultValue: Option[String] = None
   }
 
   /**
@@ -68,7 +63,7 @@ object BuildProperty {
   final case class SchedulerAllocationFile(
     override val value: Option[String]
   ) extends SparkBuildProperty {
-    override val name: String                 = "spark.scheduler.allocation.file"
+    override val name: String                 = PropertyName.SCHEDULER_ALLOCATION_FILE
     override val defaultValue: Option[String] = None
 
     override def validate(propertyValue: String): Unit =
@@ -91,7 +86,7 @@ object BuildProperty {
   ) extends SparkBuildProperty {
     private val JAVA_SERIALIZER               = "org.apache.spark.serializer.JavaSerializer"
     private val KRYO_SERIALIZER               = "org.apache.spark.serializer.KryoSerializer"
-    override val name: String                 = "spark.serializer"
+    override val name: String                 = PropertyName.SERIALIZER
     override val defaultValue: Option[String] = Some(JAVA_SERIALIZER)
 
     override def validate(propertyValue: String): Unit = {

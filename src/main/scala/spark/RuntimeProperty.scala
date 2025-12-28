@@ -22,7 +22,7 @@ object RuntimeProperty {
    * faster catch-up during backfill.
    */
   final case class MaxFilesPerTrigger(override val value: Option[String]) extends SparkRuntimeProperty {
-    override protected val name: String                 = "maxFilesPerTrigger"
+    override protected val name: String                 = PropertyName.MAX_FILES_PER_TRIGGER
     override protected val defaultValue: Option[String] = Some("1000")
   }
 
@@ -35,7 +35,7 @@ object RuntimeProperty {
    * whichever limit is hit first determines the batch boundary.
    */
   final case class MaxBytesPerTrigger(override val value: Option[String]) extends SparkRuntimeProperty {
-    override protected val name: String                 = "maxBytesPerTrigger"
+    override protected val name: String                 = PropertyName.MAX_BYTES_PER_TRIGGER
     override protected val defaultValue: Option[String] = Some("1g")
   }
 
