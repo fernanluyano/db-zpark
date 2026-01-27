@@ -1,9 +1,8 @@
 package dev.fb.dbzpark
 
-import subtask.ExecutionModel
-
+import dev.fb.dbzpark.subtask.{SubtasksGraph, SubtasksManager}
 import zio.logging.LogAnnotation
-import zio.{Scope, Task, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationLong}
+import zio.{Executor, Scope, Task, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationLong}
 
 /**
  * The interface for defining a Databricks workflow task using ZIO. Handles environment setup, execution, and error
@@ -17,8 +16,6 @@ trait WorkflowTask extends ZIOAppDefault {
       render = identity
     )
 
-  protected def getExecutionModel(env: TaskEnvironment): ExecutionModel
-
   /**
    * Runs the workflow task, initializing the environment and executing the task.
    */
@@ -27,8 +24,8 @@ trait WorkflowTask extends ZIOAppDefault {
       for {
         startNanos <- ZIO.succeed(System.nanoTime())
         _          <- ZIO.logInfo(s"Starting task: ${environment.appName}")
-        execModel  <- ZIO.attempt(getExecutionModel(environment))
-        _ <- execModel.run
+        manager    <- ZIO.attempt(SubtasksManager(getSubtasksGraph, getExecutor))
+        _ <- manager.run
                .provide(ZLayer.succeed(environment))
                .foldZIO(
                  success = _ => happyPath(environment, startNanos),
@@ -43,6 +40,14 @@ trait WorkflowTask extends ZIOAppDefault {
         failure = e => ZIO.logError(e.getMessage) *> ZIO.fail(e)
       )
   }
+
+  protected def getSubtasksGraph: SubtasksGraph =
+    SubtasksGraph
+      .Builder()
+      .addSubtask(null)
+      .build
+
+  protected def getExecutor: Executor
 
   protected def buildTaskEnvironment: TaskEnvironment
 
