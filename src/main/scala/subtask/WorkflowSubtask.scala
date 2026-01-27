@@ -18,11 +18,8 @@ import zio.{Task, ZIO}
  * stage to customize behavior, and can implement arbitrary logic - not limited to data processing.
  */
 trait WorkflowSubtask {
-
-  /**
-   * Controls failure handling behavior. If true, failures are logged but do not fail the workflow.
-   */
-  protected val ignoreAndLogFailures: Boolean
+  val taskId: String
+  val localPriority: Int = 1
 
   /**
    * Executes the subtask with logging and timing.
@@ -31,9 +28,9 @@ trait WorkflowSubtask {
    */
   def run: ZIO[TaskEnvironment, Throwable, Unit] =
     for {
-      _   <- ZIO.logInfo(s"starting subtask ${getContext.name}")
+      _   <- ZIO.logInfo(s"starting subtask $taskId")
       env <- ZIO.service[TaskEnvironment]
-      _   <- ZIO.logSpan(s"subtask-${getContext.name}")(runSubtask(env))
+      _   <- ZIO.logSpan(s"subtask-$taskId")(runSubtask(env))
     } yield ()
 
   /**
@@ -47,8 +44,8 @@ trait WorkflowSubtask {
    * @return
    *   A Task representing the subtask execution
    */
-  private def runSubtask(env: TaskEnvironment): Task[Unit] = {
-    val flow = for {
+  private def runSubtask(env: TaskEnvironment): Task[Unit] =
+    for {
       _           <- preProcess(env)
       _           <- ZIO.logInfo("finished pre-processing")
       source      <- readSource(env)
@@ -56,26 +53,8 @@ trait WorkflowSubtask {
       _           <- sink(env, transformed)
       _           <- ZIO.logInfo("finished sink")
       _           <- postProcess(env)
-      _           <- ZIO.logInfo(s"finished subtask ${getContext.name}")
+      _           <- ZIO.logInfo(s"finished subtask $taskId")
     } yield ()
-
-    flow.foldZIO(
-      success = _ => ZIO.unit,
-      failure = e =>
-        if (ignoreAndLogFailures)
-          ZIO.logError(s"Subtask ${getContext.name} failed: ${e.getMessage}").unit
-        else
-          ZIO.fail(e)
-    )
-  }
-
-  /**
-   * Metadata about the subtask.
-   *
-   * @return
-   *   SubtaskContext containing the subtask name and optional grouping information
-   */
-  def getContext: SubtaskContext
 
   /**
    * Optional pre-processing step executed before reading data.
@@ -139,4 +118,13 @@ trait WorkflowSubtask {
    *   The task environment
    */
   protected def postProcess(env: TaskEnvironment): Task[Unit] = ZIO.unit
+
+  override def equals(obj: Any): Boolean = obj match {
+    case that: WorkflowSubtask => this.taskId == that.taskId
+    case _ => false
+  }
+
+  override def hashCode(): Int = taskId.hashCode
+
+  override def toString: String = s"{ taskId: $taskId, localPriority: $localPriority }"
 }
