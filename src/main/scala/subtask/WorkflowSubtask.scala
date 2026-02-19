@@ -121,7 +121,7 @@ trait WorkflowSubtask {
 
   override def equals(obj: Any): Boolean = obj match {
     case that: WorkflowSubtask => this.taskId == that.taskId
-    case _ => false
+    case _                     => false
   }
 
   override def hashCode(): Int = taskId.hashCode
