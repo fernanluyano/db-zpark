@@ -1,8 +1,10 @@
 package dev.fb.dbzpark
 
-import dev.fb.dbzpark.subtask.{SubtasksGraph, SubtasksManager}
+import subtask.SubtasksManager
+
 import zio.logging.LogAnnotation
-import zio.{Executor, Scope, Task, ZIO, ZIOAppArgs, ZIOAppDefault, ZLayer, durationLong}
+import zio.{Scope, Task, ZIO, ZIOAppArgs, ZIOAppDefault, durationLong}
+import zio.ZLayer
 
 /**
  * The interface for defining a Databricks workflow task using ZIO. Handles environment setup, execution, and error
@@ -20,34 +22,25 @@ trait WorkflowTask extends ZIOAppDefault {
    * Runs the workflow task, initializing the environment and executing the task.
    */
   override def run: ZIO[Any with ZIOAppArgs with Scope, Throwable, Unit] = {
-    def _run(environment: TaskEnvironment) =
+    def _run =
       for {
-        startNanos <- ZIO.succeed(System.nanoTime())
-        _          <- ZIO.logInfo(s"Starting task: ${environment.appName}")
-        manager    <- ZIO.attempt(SubtasksManager(getSubtasksGraph, getExecutor))
-        _ <- manager.run
-               .provide(ZLayer.succeed(environment))
-               .foldZIO(
-                 success = _ => happyPath(environment, startNanos),
-                 failure = e => sadPath(environment, startNanos, e)
-               )
+        environment <- ZIO.service[TaskEnvironment]
+        startNanos  <- ZIO.succeed(System.nanoTime())
+        _           <- ZIO.logInfo(s"Starting task: ${environment.appName}")
+        manager     <- ZIO.attempt(SubtasksManager(environment))
+        _ <- manager.run.foldZIO(
+               success = _ => happyPath(environment, startNanos),
+               failure = e => sadPath(environment, startNanos, e)
+             )
       } yield ()
 
     ZIO
       .attempt(buildTaskEnvironment)
       .foldZIO(
-        success = e => _run(e) @@ appNameAnnotation(e.appName),
+        success = e => _run.provide(ZLayer.fromZIO(ZIO.attempt(e))) @@ appNameAnnotation(e.appName),
         failure = e => ZIO.logError(e.getMessage) *> ZIO.fail(e)
       )
   }
-
-  protected def getSubtasksGraph: SubtasksGraph =
-    SubtasksGraph
-      .Builder()
-      .addSubtask(null)
-      .build
-
-  protected def getExecutor: Executor
 
   protected def buildTaskEnvironment: TaskEnvironment
 
@@ -63,6 +56,9 @@ trait WorkflowTask extends ZIOAppDefault {
   protected def finalizeTask(env: TaskEnvironment): Task[Unit] = ZIO.attempt(env).unit
 
   private def happyPath(env: TaskEnvironment, startTimeNanos: Long): Task[Unit] = {
+    true match {
+      case true => ()
+    }
     val elapsedSeconds = (System.nanoTime() - startTimeNanos).nanos.toSeconds
     ZIO.logInfo(s"Task ${env.appName} finished successfully in $elapsedSeconds seconds") *> finalizeTask(env)
   }
