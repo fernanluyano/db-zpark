@@ -5,9 +5,68 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 class SubtasksGraph private (
-  val adjacencyList: Map[String, List[SubtaskNode]],
-  val topologicalSort: List[SubtaskNode]
+  private val adjacencyList: mutable.HashMap[String, Vector[SubtaskNode]],
+  private var topologicalSort: Vector[SubtaskNode]
 ) {
+  private val finalizedNodes = Vector.empty[SubtaskNode]
+  private val lock           = new AnyRef
+
+  def getAdjacencyList: Map[String, Seq[SubtaskNode]] = lock.synchronized {
+    adjacencyList.toMap
+  }
+
+  def getSortedDAG: Seq[SubtaskNode] = lock.synchronized {
+    topologicalSort.toSeq
+  }
+
+  def isEmpty: Boolean = lock.synchronized {
+    topologicalSort.isEmpty
+  }
+
+  def getZeroInDegree: Seq[SubtaskNode] = lock.synchronized {
+    topologicalSort.filter(_.getInDegree == 0)
+  }
+
+  def finalizeNode(node: SubtaskNode, state: NodeState): Unit = lock.synchronized {
+    node.setState(state)
+    state match {
+      case SUCCEEDED        => decrementChildrenInDegree(node)
+      case FAILED | SKIPPED => skipChildren(node)
+      case _                => throw new IllegalArgumentException(s"Invalid finalization state: $state")
+    }
+    removeNode(node)
+  }
+
+  private def skipChildren(node: SubtaskNode): Unit =
+    adjacencyList
+      .getOrElse(node.subtask.taskId, Vector.empty[SubtaskNode])
+      .foreach { child =>
+        if (child.getState != SKIPPED) {
+          child.setState(SKIPPED)
+          skipChildren(child)
+        }
+        removeNode(child)
+      }
+
+  private def decrementChildrenInDegree(node: SubtaskNode): Unit = {
+    val childrenIds = adjacencyList
+      .getOrElse(node.subtask.taskId, Vector.empty[SubtaskNode])
+      .map(ch => ch.subtask.taskId)
+      .toSet
+
+    if (childrenIds.nonEmpty) {
+      topologicalSort.foreach { node =>
+        if (childrenIds.contains(node.subtask.taskId))
+          node.decrementInDegree
+      }
+    }
+  }
+
+  /* internal use, not thread safe
+   * we only care about removing from the topologicalSort, not the adjacencyList, that's only for lookup purposes */
+  private def removeNode(node: SubtaskNode): Unit =
+    topologicalSort = topologicalSort.filterNot(_.subtask.taskId == node.subtask.taskId)
+
   override def toString: String = {
     val sb = new StringBuilder
 
@@ -30,8 +89,6 @@ class SubtasksGraph private (
 
     sb.toString
   }
-
-
 }
 
 object SubtasksGraph {
@@ -56,8 +113,10 @@ object SubtasksGraph {
       )
       adjacencyList(dependency.parentTaskId).addOne(dependency.childTaskId)
 
-      val updatedNode = nodesLookup(dependency.childTaskId).incrementInDegree
-      nodesLookup.put(dependency.childTaskId, updatedNode)
+      val childNode = nodesLookup(dependency.childTaskId)
+
+      childNode.incrementInDegree()
+      nodesLookup.put(dependency.childTaskId, childNode)
 
       this
     }
@@ -71,12 +130,12 @@ object SubtasksGraph {
       require(nodesLookup.nonEmpty, "The graph is empty!")
 
       val topologicalSort = getTopologicalSorted.map { node =>
-        val savedInDegree = nodesLookup(node.subtask.taskId).inDegree
+        val savedInDegree = nodesLookup(node.subtask.taskId).getInDegree
         node.copy(inDegree = savedInDegree)
-      }
+      }.toVector
       val adjList = adjacencyList.map { case (nodeId, neighbours) =>
-        nodeId -> neighbours.map(nodesLookup).toList
-      }.toMap
+        nodeId -> neighbours.map(nodesLookup).toVector
+      }
 
       new SubtasksGraph(adjList, topologicalSort)
     }
@@ -96,19 +155,20 @@ object SubtasksGraph {
       topologicalSort.toList
     }
 
-    private def popNodesWithZeroInDegree(nodes: mutable.HashMap[String, SubtaskNode]): List[SubtaskNode] = {
-      val toPop = nodes.filter { case (_, node) => node.inDegree == 0 }
+    private def popNodesWithZeroInDegree(nodes: mutable.HashMap[String, SubtaskNode]): Seq[SubtaskNode] = {
+      val zeroInDegreeNodes = nodes.filter { case (_, node) => node.getInDegree == 0 }
 
-      toPop.keys.foreach { parentId =>
+      zeroInDegreeNodes.keys.foreach { parentId =>
         adjacencyList(parentId).foreach { childId =>
-          val updatedChildNode = nodes(childId).decrementInDegree
-          nodes.update(childId, updatedChildNode)
+          val childNode = nodes(childId)
+          childNode.decrementInDegree
+          nodes.update(childId, childNode)
         }
 
         nodes.remove(parentId)
       }
 
-      toPop.values.toList
+      zeroInDegreeNodes.values.toSeq
     }
   }
 
