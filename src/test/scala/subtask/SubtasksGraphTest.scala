@@ -34,25 +34,25 @@ class SubtasksGraphTest extends AnyFunSuite {
       .addDependencies(edges)
       .build
     val expectedAdjList = Map(
-      "1" -> List(SubtaskNode(new MyTask("2"), 1)),
-      "2" -> List(SubtaskNode(new MyTask("4"), 1)),
-      "3" -> List(SubtaskNode(new MyTask("5"), 1)),
-      "4" -> List(SubtaskNode(new MyTask("6"), 1), SubtaskNode(new MyTask("3"), 1)),
-      "5" -> List(SubtaskNode(new MyTask("7"), 2)),
-      "6" -> List(SubtaskNode(new MyTask("7"), 2)),
-      "7" -> List()
+      "1" -> Set("2"),
+      "2" -> Set("4"),
+      "3" -> Set("5"),
+      "4" -> Set("3", "6"),
+      "5" -> Set("7"),
+      "6" -> Set("7"),
+      "7" -> Set.empty[String]
     )
 
     assertResult(expectedAdjList)(graph.getAdjacencyList)
 
     // the only node with no dependencies
-    assertResult(SubtaskNode(new MyTask("1"), 0))(graph.getSortedDAG.head)
+    assertResult(SubtaskNode(new MyTask("1"), 0))(graph.getNodesQueue.filter(_.inDegree == 0).head)
     // the only node with 2 dependencies
-    assertResult(SubtaskNode(new MyTask("7"), 2))(graph.getSortedDAG(6))
+    assertResult(SubtaskNode(new MyTask("7"), 2))(graph.getNodesQueue.filter(_.inDegree == 2).head)
 
     // the rest have exactly 1 dependency, and they can be in any order
     for (i <- 2 to 6)
-      assert(graph.getSortedDAG.contains(SubtaskNode(new MyTask(i.toString), 1)))
+      assert(graph.getNodesQueue.contains(SubtaskNode(new MyTask(i.toString), 1)))
 
     println(graph)
   }
@@ -77,18 +77,18 @@ class SubtasksGraphTest extends AnyFunSuite {
     val graph = builder.build
 
     val expectedAdjListNoEdges = Map(
-      "1" -> List.empty[SubtaskNode],
-      "2" -> List.empty[SubtaskNode],
-      "3" -> List.empty[SubtaskNode]
+      "1" -> Set.empty[String],
+      "2" -> Set.empty[String],
+      "3" -> Set.empty[String]
     )
     // expect the 3 nodes to have no connections
-    val expectedDAG = Seq(
+    val expectedDAG = Set(
       SubtaskNode(new MyTask("1"), 0),
       SubtaskNode(new MyTask("2"), 0),
       SubtaskNode(new MyTask("3"), 0)
     )
 
     assertResult(expectedAdjListNoEdges)(graph.getAdjacencyList)
-    assertResult(expectedDAG)(graph.getSortedDAG)
+    assertResult(expectedDAG)(graph.getNodesQueue.toSet)
   }
 }
