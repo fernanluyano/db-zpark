@@ -2,88 +2,89 @@ package dev.fb.dbzpark
 package subtask
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 class SubtasksGraph private (
-  private val adjacencyList: mutable.HashMap[String, Vector[SubtaskNode]],
-  private var topologicalSort: Vector[SubtaskNode]
+  private val adjacencyListIds: Map[String, Set[String]],
+  private var nodesQueueMap: mutable.HashMap[String, SubtaskNode]
 ) {
-  private val finalizedNodes = Vector.empty[SubtaskNode]
+  private val finalizedNodes = new mutable.ArrayBuffer[SubtaskNode]
   private val lock           = new AnyRef
 
-  def getAdjacencyList: Map[String, Seq[SubtaskNode]] = lock.synchronized {
-    adjacencyList.toMap
+  def getAdjacencyList: Map[String, Set[String]] = lock.synchronized {
+    adjacencyListIds
   }
 
-  def getSortedDAG: Seq[SubtaskNode] = lock.synchronized {
-    topologicalSort.toSeq
+  def getNodesQueue: Seq[SubtaskNode] = lock.synchronized {
+    nodesQueueMap.values.toSeq
   }
 
-  def isEmpty: Boolean = lock.synchronized {
-    topologicalSort.isEmpty
+  def nonEmpty: Boolean = lock.synchronized {
+    nodesQueueMap.nonEmpty
   }
 
   def getZeroInDegree: Seq[SubtaskNode] = lock.synchronized {
-    topologicalSort.filter(_.getInDegree == 0)
+    val zeroInDegree = nodesQueueMap.values.filter(_.inDegree == 0).toVector
+
+    if (zeroInDegree.isEmpty)
+      require(nodesQueueMap.isEmpty, "The graph is not a DAG")
+
+    zeroInDegree.sortBy(_.subtask.localPriority)(Ordering.Int.reverse)
   }
 
-  def finalizeNode(node: SubtaskNode, state: NodeState): Unit = lock.synchronized {
-    node.setState(state)
-    state match {
+  def finalizeNode(node: SubtaskNode): Unit = lock.synchronized {
+    nodesQueueMap(node.getSubtaskId) = node
+    finalizedNodes.append(node)
+
+    node.state match {
       case SUCCEEDED        => decrementChildrenInDegree(node)
       case FAILED | SKIPPED => skipChildren(node)
-      case _                => throw new IllegalArgumentException(s"Invalid finalization state: $state")
+      case _                => throw new IllegalArgumentException(s"Invalid finalization state: ${node.state}")
     }
-    removeNode(node)
-  }
 
-  private def skipChildren(node: SubtaskNode): Unit =
-    adjacencyList
-      .getOrElse(node.subtask.taskId, Vector.empty[SubtaskNode])
-      .foreach { child =>
-        if (child.getState != SKIPPED) {
-          child.setState(SKIPPED)
-          skipChildren(child)
-        }
-        removeNode(child)
-      }
+    nodesQueueMap.remove(node.getSubtaskId)
+  }
 
   private def decrementChildrenInDegree(node: SubtaskNode): Unit = {
-    val childrenIds = adjacencyList
-      .getOrElse(node.subtask.taskId, Vector.empty[SubtaskNode])
-      .map(ch => ch.subtask.taskId)
-      .toSet
+    val children = adjacencyListIds.getOrElse(node.getSubtaskId, Set())
 
-    if (childrenIds.nonEmpty) {
-      topologicalSort.foreach { node =>
-        if (childrenIds.contains(node.subtask.taskId))
-          node.decrementInDegree
-      }
+    children.foreach { childId =>
+      val newChild = nodesQueueMap(childId).decrementInDegree
+      nodesQueueMap(childId) = newChild
     }
   }
 
-  /* internal use, not thread safe
-   * we only care about removing from the topologicalSort, not the adjacencyList, that's only for lookup purposes */
-  private def removeNode(node: SubtaskNode): Unit =
-    topologicalSort = topologicalSort.filterNot(_.subtask.taskId == node.subtask.taskId)
+  private def skipChildren(node: SubtaskNode): Unit = {
+    val children = adjacencyListIds.getOrElse(node.getSubtaskId, Set())
+
+    children.foreach { childId =>
+      val childNode = nodesQueueMap(childId).setState(SKIPPED)
+
+      if (nodesQueueMap.contains(childNode.getSubtaskId)) {
+        finalizedNodes.append(childNode)
+        nodesQueueMap.remove(childNode.getSubtaskId)
+      }
+
+      skipChildren(childNode)
+    }
+  }
 
   override def toString: String = {
     val sb = new StringBuilder
 
-    sb.append("=== Subtasks Graph (Topological Order, LP <=> Local Priority) ===\n\n")
+    sb.append("=== Subtasks Graph (Topological Order) ===\n\n")
 
-    topologicalSort.foreach { node =>
+    nodesQueueMap.values.foreach { node =>
       val taskId   = node.subtask.taskId
       val priority = node.subtask.localPriority
-
-      val children = adjacencyList
-        .getOrElse(taskId, List.empty)
-        .map(_.subtask.taskId)
+      val children = adjacencyListIds.getOrElse(taskId, Set.empty)
 
       if (children.isEmpty) {
         sb.append(s"$taskId [LP:$priority]\n")
       } else {
-        sb.append(s"$taskId [LP:$priority] ──> ${children.mkString(", ")}\n")
+        val chMeta = children.map { ch =>
+          s"[id: ${ch}, inDegree: ${nodesQueueMap(ch).inDegree}]"
+        }.mkString("{ ", ", ", " }")
+        sb.append(s"id: ${taskId}, localPriority: $priority ──> $chMeta\n")
       }
     }
 
@@ -113,9 +114,7 @@ object SubtasksGraph {
       )
       adjacencyList(dependency.parentTaskId).addOne(dependency.childTaskId)
 
-      val childNode = nodesLookup(dependency.childTaskId)
-
-      childNode.incrementInDegree()
+      val childNode = nodesLookup(dependency.childTaskId).incrementInDegree
       nodesLookup.put(dependency.childTaskId, childNode)
 
       this
@@ -129,46 +128,23 @@ object SubtasksGraph {
     def build: SubtasksGraph = {
       require(nodesLookup.nonEmpty, "The graph is empty!")
 
-      val topologicalSort = getTopologicalSorted.map { node =>
-        val savedInDegree = nodesLookup(node.subtask.taskId).getInDegree
-        node.copy(inDegree = savedInDegree)
-      }.toVector
-      val adjList = adjacencyList.map { case (nodeId, neighbours) =>
-        nodeId -> neighbours.map(nodesLookup).toVector
-      }
+      val adjList = adjacencyList.mapValues(_.toSet).toMap
+      testIsDAG(adjList)
 
-      new SubtasksGraph(adjList, topologicalSort)
+      new SubtasksGraph(adjList, nodesLookup.clone)
     }
 
-    private def getTopologicalSorted: List[SubtaskNode] = {
-      val topologicalSort = new ArrayBuffer[SubtaskNode](nodesLookup.size)
-      val nodesCopy       = nodesLookup.clone()
+    private def testIsDAG(adjList: Map[String, Set[String]]): Unit = {
+      val testQueue       = nodesLookup.clone
+      val unverifiedGraph = new SubtasksGraph(adjList, testQueue)
+      var done            = false
 
-      while (nodesCopy.nonEmpty) {
-        val zeroDegreeNodes = popNodesWithZeroInDegree(nodesCopy).sortBy(_.subtask.localPriority)(Ordering.Int.reverse)
+      while (!done) {
+        val zeroInDegree = unverifiedGraph.getZeroInDegree
+        zeroInDegree.foreach(n => unverifiedGraph.finalizeNode(n.setState(RUNNING).setState(SUCCEEDED)))
 
-        require(zeroDegreeNodes.nonEmpty, "The graph is not a DAG.")
-
-        topologicalSort.addAll(zeroDegreeNodes)
+        done = zeroInDegree.isEmpty
       }
-
-      topologicalSort.toList
-    }
-
-    private def popNodesWithZeroInDegree(nodes: mutable.HashMap[String, SubtaskNode]): Seq[SubtaskNode] = {
-      val zeroInDegreeNodes = nodes.filter { case (_, node) => node.getInDegree == 0 }
-
-      zeroInDegreeNodes.keys.foreach { parentId =>
-        adjacencyList(parentId).foreach { childId =>
-          val childNode = nodes(childId)
-          childNode.decrementInDegree
-          nodes.update(childId, childNode)
-        }
-
-        nodes.remove(parentId)
-      }
-
-      zeroInDegreeNodes.values.toSeq
     }
   }
 
