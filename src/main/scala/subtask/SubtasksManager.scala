@@ -10,7 +10,7 @@ import zio.Task
 final class SubtasksManager private (private val environment: TaskEnvironment) {
 
   def run: RIO[TaskEnvironment, Unit] = {
-    val schedule = Schedule.recurWhile[Unit](_ => !environment.subtasksGraph.isEmpty) && Schedule.fixed(1.second)
+    val schedule = Schedule.recurWhile[Unit](_ => environment.subtasksGraph.nonEmpty) && Schedule.fixed(1.second)
 
     dispatcher.repeat(schedule).unit
   }
@@ -36,10 +36,10 @@ final class SubtasksManager private (private val environment: TaskEnvironment) {
     } yield ()
 
   private def handleNodeFailure(subtaskNode: SubtaskNode): Task[Unit] =
-    ZIO.attempt(environment.subtasksGraph.finalizeNode(subtaskNode, FAILED))
+    ZIO.attempt(environment.subtasksGraph.finalizeNode(subtaskNode.setState(FAILED)))
 
   private def handleNodeSuccess(subtaskNode: SubtaskNode): Task[Unit] =
-    ZIO.attempt(environment.subtasksGraph.finalizeNode(subtaskNode, SUCCEEDED))
+    ZIO.attempt(environment.subtasksGraph.finalizeNode(subtaskNode.setState(SUCCEEDED)))
 }
 
 object SubtasksManager {
