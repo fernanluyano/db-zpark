@@ -1,5 +1,7 @@
 package dev.fb.dbzpark
 
+import org.apache.hadoop.shaded.org.xbill.DNS.dnssec.R
+
 /**
  * Core types and utilities for the subtask workflow framework.
  */
@@ -7,21 +9,20 @@ package object subtask {
 
   private[subtask] case class SubtaskNode(
     subtask: WorkflowSubtask,
-    private var inDegree: Int,
-    private var state: NodeState = WAITING
+    inDegree: Int,
+    state: NodeState = WAITING
   ) {
-    def incrementInDegree(): Unit = inDegree += 1
+    def incrementInDegree: SubtaskNode = copy(inDegree = inDegree + 1)
 
-    def decrementInDegree(): Unit = inDegree -= 1
+    def decrementInDegree: SubtaskNode = copy(inDegree = inDegree - 1)
 
-    def getInDegree: Int = inDegree
-
-    def getState: NodeState = state
-
-    def setState(newState: NodeState): Unit = {
+    def setState(newState: NodeState): SubtaskNode = {
       validateTransition(newState)
-      state = newState
+
+      copy(state = newState)
     }
+
+    def getSubtaskId: String = subtask.taskId
 
     private def validateTransition(to: NodeState): Unit = {
       val valid = (state, to) match {
@@ -29,7 +30,7 @@ package object subtask {
         case (RUNNING, FAILED)    => true
         case (RUNNING, SKIPPED)   => true
         case (WAITING, SKIPPED)   => true
-        case (READY, SKIPPED)     => true
+        case (WAITING, RUNNING)   => true
         case _                    => false
       }
       require(valid, s"Invalid node state transition: $state -> $to")
@@ -41,7 +42,6 @@ package object subtask {
   sealed trait NodeState
 
   case object WAITING   extends NodeState
-  case object READY     extends NodeState
   case object RUNNING   extends NodeState
   case object SUCCEEDED extends NodeState
   case object FAILED    extends NodeState
