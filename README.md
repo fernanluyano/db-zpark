@@ -19,7 +19,7 @@ Key features include:
 - Built-in error handling and reporting
 - JSON-based structured logging
 - Composable subtasks for complex workflows
-- Sequential and concurrent task execution with configurable parallelism
+- DAG-based task scheduling with topological ordering, priority dispatch, and configurable parallelism
 
 ## Databricks Runtime Compatibility
 See [Databricks Runtime releases](https://docs.databricks.com/aws/en/release-notes/runtime/#supported-databricks-runtime-lts-releases)
@@ -87,68 +87,61 @@ With db-zpark, you can solve these challenges using a code-first approach that l
 
 Choose your execution pattern based on your workflow requirements:
 
-- **Have a simple workflow with few steps?** → Use [Simple Workflow Task](#1-simple-workflow-task)
-- **Need to process tasks one after another?** → Use [Sequential Subtasks](#2-sequential-subtasks)
-- **Have independent tasks that can run in parallel?** → Use [Concurrent Subtasks](#3-concurrent-subtasks)
-    - All tasks can run at once? → Use `NO_DEPENDENCIES` strategy
-    - Tasks grouped with dependencies between groups? → Use `GROUP_DEPENDENCIES` strategy
+- **Single task or very simple pipeline?** → Use [Simple Workflow Task](#1-simple-workflow-task)
+- **Independent tasks that can run in parallel?** → Use [Parallel Subtasks](#2-parallel-subtasks)
+- **Tasks with ordering dependencies?** → Use [DAG Subtasks](#3-dag-subtasks)
 
 ### Common Use Cases and Examples
 
-The core of db-zpark is the `WorkflowTask` trait, which provides a structured way to create Spark jobs with built-in logging and error handling.
+The core of db-zpark is the `WorkflowTask` trait. Extend it, implement `buildTaskEnvironment`
+to supply a `SubtasksGraph` and execution settings, and db-zpark handles the rest.
 
 #### 1. Simple Workflow Task
 
-A basic workflow that reads, processes, and writes data.
+A single subtask registered in a one-node graph. Use this as the starting point for straightforward pipelines.
 
-This example optionally includes logging with Kafka integration for remote monitoring. Use this approach for straightforward data processing tasks or as a foundation for more complex workflows.
+**Example**: [examples/simple/MyApp.scala](examples/simple/MyApp.scala)
 
-**Example**: [examples/simple/SimpleApp.scala](examples/simple/SimpleApp.scala)
+#### 2. Parallel Subtasks
 
-#### 2. Sequential Subtasks
+Multiple independent subtasks registered in a graph with no dependencies between them.
+All nodes are ready in the first batch and run concurrently up to `maxConcurrentSubtasks`.
 
-Process multiple tasks in sequence with clear, reusable subtasks.
+**Example**: [examples/parallel/MyApp.scala](examples/parallel/MyApp.scala)
 
-This approach works best when tasks have dependencies or must be processed in a specific order. Each subtask follows a structured ETL pattern (pre-process → read → transform → sink → post-process), though each stage can be customized for different business logic.
+#### 3. DAG Subtasks
 
-**Example**: [examples/sequential/MyApp.scala](examples/sequential/MyApp.scala)
+Subtasks with explicit parent–child dependencies declared via `ParentChildDependency`.
+The scheduler uses topological ordering (Kahn's algorithm) to dispatch nodes in dependency order.
+Nodes in the same batch run concurrently; nodes in later batches wait for their parents.
 
-#### 3. Concurrent Subtasks
+Failure behaviour is controlled by `failFast` on `TaskEnvironment`:
+- `failFast = false` (default): a failed subtask logs the error, skips its descendants, and lets unrelated subtasks continue.
+- `failFast = true`: the first failure halts the entire run immediately.
 
-Process multiple tasks concurrently for better performance.
-
-This approach offers two execution strategies:
-
-**3a. NO_DEPENDENCIES Strategy**
-
-All tasks run in parallel with configurable parallelism limits. Ideal when all tasks are independent and can execute simultaneously.
-
-**Example**: [examples/concurrent/MyApp1.scala](examples/concurrent/MyApp1.scala)
-
-**3b. GROUP_DEPENDENCIES Strategy**
-
-Tasks are organized into groups. Tasks within a group run concurrently, but groups execute sequentially in alphabetical order. Perfect for workflows where you have sets of independent tasks with dependencies between those sets.
-
-**Example**: [examples/concurrent/MyApp2.scala](examples/concurrent/MyApp2.scala)
+**Example**: [examples/dag/MyApp.scala](examples/dag/MyApp.scala)
 
 ##### Parallelism Control
 
-The concurrent runner provides fine-grained control over parallelism:
+Two independent settings in `TaskEnvironment` control concurrency:
 
 ```scala
-// maxRunningSubtasks controls fiber-level concurrency (how many tasks run at once)
-val runner = ConcurrentRunner(subtasks, strategy, maxRunningSubtasks = 8)
+new TaskEnvironment {
+  // How many subtasks may run concurrently within one batch
+  override def maxConcurrentSubtasks: Int = 8
 
-// Executor controls thread pool size (for blocking operations)
-val executor = Executor.fromJavaExecutor(Executors.newFixedThreadPool(4))
-val model = new ExecutionModel(runner, Some(executor))
+  // Thread pool backing the ZIO executor (for blocking Spark operations)
+  override def subtasksExecutor: Executor =
+    Executor.fromJavaExecutor(Executors.newFixedThreadPool(4))
+  ...
+}
 ```
 
 **Key distinction**:
-- `maxRunningSubtasks`: Controls how many ZIO fibers run concurrently (lightweight)
-- `executor thread pool`: Controls how many OS threads are available (heavyweight)
+- `maxConcurrentSubtasks`: controls how many ZIO fibers run concurrently (lightweight).
+- `subtasksExecutor` thread pool: controls how many OS threads are available (heavyweight, for blocking Spark operations).
 
-Many fibers can run on few threads, making it possible to have high concurrency (100+ tasks) on a small thread pool (4-8 threads).
+Many fibers can run on few threads, making it possible to have high concurrency (100+ tasks) on a small thread pool.
 
 ### Configuring a JAR Task in Databricks Workflow
 
@@ -183,30 +176,46 @@ This approach allows you to take advantage of Databricks workflow orchestration 
 
 ### Configuring Logging (optional)
 
-db-zpark provides a flexible logging system with console and Kafka options. To enable custom logging,
-create a trait that extends `DefaultLogging` and mix it into your WorkflowTask. The default implementation provides JSON console logging out of the box.
+db-zpark provides a flexible logging system with console and JSON file options. Mix `DefaultLogging`
+into your `WorkflowTask` to override the ZIO `bootstrap` layer with both console and file-based JSON
+logging. Set `logsTable` to persist logs to a Delta table after the run completes.
+
 ```scala
 import logging.DefaultLogging
+import unitycatalog.Tables.UcTable
 
 import org.apache.spark.sql.SparkSession
-import zio.{ZIO, ZIOAppArgs, ZLayer}
+import zio.Executor
+
+import java.util.concurrent.Executors
 
 object MySparkJobWithLogging extends WorkflowTask with DefaultLogging {
-  class MyTaskEnvironment(val sparkSession: SparkSession, val appName: String) extends TaskEnvironment
+
+  // Set to Some(UcTable(...)) to persist logs to a Delta table after the run
+  override val logsTable: Option[UcTable] = None
 
   override protected def buildTaskEnvironment: TaskEnvironment = {
     val spark = SparkSession.builder()
-      .appName("My Spark Job")
-      .master("local[*]")
+      .appName("my-spark-job")
       .getOrCreate()
 
-    new MyTaskEnvironment(spark, "My Spark Job")
-  }
+    val graph = subtask.SubtasksGraph.Builder()
+      .addSubtask(/* your subtasks */)
+      .build
 
-  // define the spark logic, see example above
-  override protected def startTask: ZIO[TaskEnvironment, Throwable, Unit] = ZIO.unit
+    new TaskEnvironment {
+      override def sparkSession: SparkSession = spark
+      override def appName: String            = "my-spark-job"
+      override def subtasksGraph              = graph
+      override def subtasksExecutor: Executor = Executor.fromJavaExecutor(Executors.newFixedThreadPool(4))
+      override def maxConcurrentSubtasks: Int = 4
+    }
+  }
 }
 ```
+
+The log file is written to `logFilePath` (default: `file:///tmp/db_zpark_logs.log`).
+Override `logFilePath` in your object to change the location.
 
 ## Building
 
