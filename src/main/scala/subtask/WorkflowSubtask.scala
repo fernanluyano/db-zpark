@@ -34,10 +34,7 @@ trait WorkflowSubtask {
     } yield ()
 
   /**
-   * Executes all stages of the subtask in sequence.
-   *
-   * Failures are handled according to the ignoreAndLogFailures flag. If true, errors are logged but the effect
-   * succeeds. If false, errors propagate to the caller.
+   * Executes all stages of the subtask in sequence. Failures propagate to the caller.
    *
    * @param env
    *   The task environment containing Spark session, app configuration and other dependencies needed
