@@ -53,8 +53,6 @@ class SubtasksGraphTest extends AnyFunSuite {
     // the rest have exactly 1 dependency, and they can be in any order
     for (i <- 2 to 6)
       assert(graph.getNodesQueue.contains(SubtaskNode(new MyTask(i.toString), 1)))
-
-    println(graph)
   }
 
   test("SubtasksGraph DAG with cycle test") {
