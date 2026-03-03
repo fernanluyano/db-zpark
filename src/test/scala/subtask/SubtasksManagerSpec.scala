@@ -36,7 +36,11 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
    * A subtask that appends its taskId to `order` when run.
    * Used to assert dispatch ordering when maxConcurrentSubtasks = 1.
    */
-  class PrioritySubtask(override val taskId: String, override val localPriority: Int, order: ConcurrentLinkedQueue[String]) extends WorkflowSubtask {
+  class PrioritySubtask(
+    override val taskId: String,
+    override val localPriority: Int,
+    order: ConcurrentLinkedQueue[String]
+  ) extends WorkflowSubtask {
     override def run: ZIO[TaskEnvironment, Throwable, Unit]                                      = ZIO.attempt(order.add(taskId)).unit
     override protected def readSource(env: TaskEnvironment): Task[Dataset[_]]                    = ???
     override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ???
@@ -47,7 +51,8 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
    * A subtask that increments `active` on start, records the `peak` concurrent count, sleeps 50ms,
    * then decrements `active` on completion. Used to assert actual concurrency levels.
    */
-  class TrackedSubtask(override val taskId: String, active: AtomicInteger, peak: AtomicInteger) extends WorkflowSubtask {
+  class TrackedSubtask(override val taskId: String, active: AtomicInteger, peak: AtomicInteger)
+      extends WorkflowSubtask {
     override def run: ZIO[TaskEnvironment, Throwable, Unit] =
       ZIO.attempt {
         val current = active.incrementAndGet()
@@ -90,7 +95,8 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
       val task2 = new SuccessfulSubtask("task2")
       val task3 = new SuccessfulSubtask("task3")
 
-      val graph = SubtasksGraph.Builder()
+      val graph = SubtasksGraph
+        .Builder()
         .addSubtask(task1)
         .addSubtask(task2)
         .addSubtask(task3)
@@ -117,7 +123,8 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
       val task2 = new FailingSubtask("task2")
       val task3 = new SuccessfulSubtask("task3")
 
-      val graph = SubtasksGraph.Builder()
+      val graph = SubtasksGraph
+        .Builder()
         .addSubtask(task1)
         .addSubtask(task2)
         .addSubtask(task3)
@@ -142,7 +149,8 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
       val task2 = new FailingSubtask("task2")
       val task3 = new SuccessfulSubtask("task3")
 
-      val graph = SubtasksGraph.Builder()
+      val graph = SubtasksGraph
+        .Builder()
         .addSubtask(task1)
         .addSubtask(task2)
         .addSubtask(task3)
@@ -182,7 +190,8 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
       val task6 = new SuccessfulSubtask("task6")
       val task7 = new SuccessfulSubtask("task7")
 
-      val graph = SubtasksGraph.Builder()
+      val graph = SubtasksGraph
+        .Builder()
         .addSubtask(task1)
         .addSubtask(task2)
         .addSubtask(task3)
@@ -220,7 +229,8 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
       val active = new AtomicInteger(0)
       val peak   = new AtomicInteger(0)
 
-      val graph = SubtasksGraph.Builder()
+      val graph = SubtasksGraph
+        .Builder()
         .addSubtask(new TrackedSubtask("task1", active, peak))
         .addSubtask(new TrackedSubtask("task2", active, peak))
         .addSubtask(new TrackedSubtask("task3", active, peak))
@@ -239,7 +249,8 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
       val active = new AtomicInteger(0)
       val peak   = new AtomicInteger(0)
 
-      val graph = SubtasksGraph.Builder()
+      val graph = SubtasksGraph
+        .Builder()
         .addSubtask(new TrackedSubtask("task1", active, peak))
         .addSubtask(new TrackedSubtask("task2", active, peak))
         .addSubtask(new TrackedSubtask("task3", active, peak))
@@ -262,7 +273,8 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
       val active = new AtomicInteger(0)
       val peak   = new AtomicInteger(0)
 
-      val graph = SubtasksGraph.Builder()
+      val graph = SubtasksGraph
+        .Builder()
         .addSubtask(new TrackedSubtask("task1", active, peak))
         .addSubtask(new TrackedSubtask("task2", active, peak))
         .addSubtask(new TrackedSubtask("task3", active, peak))
@@ -279,10 +291,11 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
     test("higher priority tasks are dispatched first") {
       val order = new ConcurrentLinkedQueue[String]()
 
-      val graph = SubtasksGraph.Builder()
-        .addSubtask(new PrioritySubtask("low",    localPriority = 1, order))
+      val graph = SubtasksGraph
+        .Builder()
+        .addSubtask(new PrioritySubtask("low", localPriority = 1, order))
         .addSubtask(new PrioritySubtask("medium", localPriority = 5, order))
-        .addSubtask(new PrioritySubtask("high",   localPriority = 10, order))
+        .addSubtask(new PrioritySubtask("high", localPriority = 10, order))
         .build
 
       val env = makeEnv(graph, maxConcurrent = 1)
@@ -304,7 +317,8 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
       val taskB = new SuccessfulSubtask("taskB")
       val taskC = new SuccessfulSubtask("taskC")
 
-      val graph = SubtasksGraph.Builder()
+      val graph = SubtasksGraph
+        .Builder()
         .addSubtask(taskA)
         .addSubtask(taskB)
         .addSubtask(taskC)
@@ -332,7 +346,8 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
       val task2 = new FailingSubtask("task2")
       val task3 = new FailingSubtask("task3")
 
-      val graph = SubtasksGraph.Builder()
+      val graph = SubtasksGraph
+        .Builder()
         .addSubtask(task1)
         .addSubtask(task2)
         .addSubtask(task3)
