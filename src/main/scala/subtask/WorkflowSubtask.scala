@@ -7,51 +7,59 @@ import zio.{Task, ZIO}
 /**
  * A composable unit of work within a workflow that processes data through defined pipeline stages.
  *
- * This trait implements a standardized sequence of operations:
- *   - Pre-processing setup
- *   - Data source reading
- *   - Data transformation
- *   - Writing to a sink
- *   - Post-processing and/or cleanup
+ * Execution follows this sequence:
+ *   1. [[preProcess]] — optional setup before the pipeline runs
+ *   2. [[readSource]] → [[transformer]] → [[sink]] — the core pipeline
+ *   3. [[postProcess]] — optional work after the pipeline completes
  *
- * Each stage is tracked with appropriate logging for monitoring and diagnostics. Implementations can override any
- * stage to customize behavior, and can implement arbitrary logic - not limited to data processing.
+ * The pipeline and post-processing behaviour on failure is controlled by [[ensurePostProcess]]:
+ *   - `false` (default): [[postProcess]] runs only if the pipeline succeeds; pipeline errors propagate immediately.
+ *   - `true`: [[postProcess]] always runs regardless of pipeline outcome; the original error is re-raised afterwards.
+ *
+ * All stages are wrapped with logging and timing via [[run]], which is `final` and cannot be overridden.
+ * Implementations customise behaviour exclusively through the protected hook methods.
  */
 trait WorkflowSubtask {
   val taskId: String
-  val localPriority: Int = 1
+  val localPriority: Int         = 1
+  val ensurePostProcess: Boolean = false
 
   /**
    * Executes the subtask with logging and timing.
    * @return
    *   A ZIO effect that runs the subtask in a TaskEnvironment
    */
-  def run: ZIO[TaskEnvironment, Throwable, Unit] =
+  final def run: ZIO[TaskEnvironment, Throwable, Unit] =
     for {
       _   <- ZIO.logInfo(s"starting subtask $taskId")
       env <- ZIO.service[TaskEnvironment]
       _   <- ZIO.logSpan(s"subtask-$taskId")(runSubtask(env))
     } yield ()
 
-  /**
-   * Executes all stages of the subtask in sequence. Failures propagate to the caller.
-   *
-   * @param env
-   *   The task environment containing Spark session, app configuration and other dependencies needed
-   * @return
-   *   A Task representing the subtask execution
-   */
   private def runSubtask(env: TaskEnvironment): Task[Unit] =
     for {
-      _           <- preProcess(env)
-      _           <- ZIO.logInfo("finished pre-processing")
+      _ <- preProcess(env)
+      _ <- ZIO.logInfo("finished pre-processing")
+      _ <- runPipeline(env)
+      _ <- ZIO.logInfo(s"finished subtask $taskId")
+    } yield ()
+
+  private def runPipeline(env: TaskEnvironment): Task[Unit] = {
+    val res = for {
       source      <- readSource(env)
       transformed <- transformer(env, source)
       _           <- sink(env, transformed)
       _           <- ZIO.logInfo("finished sink")
-      _           <- postProcess(env)
-      _           <- ZIO.logInfo(s"finished subtask $taskId")
     } yield ()
+
+    if (ensurePostProcess)
+      res.foldZIO(
+        failure = e => postProcess(env) *> ZIO.fail(e),
+        success = _ => postProcess(env)
+      )
+    else
+      res *> postProcess(env)
+  }
 
   /**
    * Optional pre-processing step executed before reading data.
@@ -106,10 +114,10 @@ trait WorkflowSubtask {
   protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit]
 
   /**
-   * Optional post-processing step executed after all other steps complete.
+   * Optional step executed after the pipeline completes. Can be used for any post-work the implementation requires,
+   * such as cleanup, notifications, or metadata updates.
    *
-   * Override this method to perform cleanup tasks such as deleting temporary files, sending notifications, or updating
-   * metadata. The default implementation does nothing.
+   * Whether this runs on pipeline failure is governed by [[ensurePostProcess]]. The default implementation does nothing.
    *
    * @param env
    *   The task environment

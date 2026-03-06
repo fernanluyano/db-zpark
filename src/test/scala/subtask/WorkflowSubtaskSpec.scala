@@ -6,6 +6,7 @@ import org.apache.spark.sql.SparkSession
 import zio._
 import zio.test._
 
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.mutable.ListBuffer
 
 object WorkflowSubtaskSpec extends ZIOSpecDefault {
@@ -172,6 +173,63 @@ object WorkflowSubtaskSpec extends ZIOSpecDefault {
         // Verify task succeeded without implementing optional methods
         messages.exists(_.contains("starting subtask minimal-subtask")),
         messages.exists(_.contains("finished subtask minimal-subtask"))
+      )
+    },
+    test("ensurePostProcess = true runs postProcess even when pipeline fails") {
+      val postProcessRan = new AtomicBoolean(false)
+
+      val subtask = new WorkflowSubtask {
+        override val taskId: String             = "ensure-post-process-failing"
+        override val ensurePostProcess: Boolean = true
+
+        override protected def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+          ZIO.fail(new RuntimeException("pipeline failed"))
+
+        override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+          ZIO.succeed(inDs)
+
+        override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+          ZIO.unit
+
+        override protected def postProcess(env: TaskEnvironment): Task[Unit] =
+          ZIO.attempt(postProcessRan.set(true))
+      }
+
+      val env = new TestTaskEnvironment()
+
+      for {
+        exit <- subtask.run.provide(ZLayer.succeed(env)).exit
+      } yield assertTrue(
+        exit.isFailure,
+        postProcessRan.get()
+      )
+    },
+    test("ensurePostProcess = false does not run postProcess when pipeline fails") {
+      val postProcessRan = new AtomicBoolean(false)
+
+      val subtask = new WorkflowSubtask {
+        override val taskId: String = "no-ensure-post-process-failing"
+
+        override protected def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+          ZIO.fail(new RuntimeException("pipeline failed"))
+
+        override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] =
+          ZIO.succeed(inDs)
+
+        override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit] =
+          ZIO.unit
+
+        override protected def postProcess(env: TaskEnvironment): Task[Unit] =
+          ZIO.attempt(postProcessRan.set(true))
+      }
+
+      val env = new TestTaskEnvironment()
+
+      for {
+        exit <- subtask.run.provide(ZLayer.succeed(env)).exit
+      } yield assertTrue(
+        exit.isFailure,
+        !postProcessRan.get()
       )
     }
   ) @@ TestAspect.beforeAll(ZIO.attempt(executionOrder.clear()))
