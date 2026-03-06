@@ -27,10 +27,13 @@ final class SubtasksManager private (private val environment: TaskEnvironment) {
    * finalized or skipped), or fails immediately if `failFast` is enabled and a task fails.
    */
   def run: ZIO[TaskEnvironment, Throwable, Unit] =
-    ZIO.attempt(environment.subtasksGraph.getZeroInDegree).flatMap {
-      case Seq() => ZIO.unit
-      case nodes => runBatchAndWait(nodes)
-    }
+    ZIO
+      .attempt(environment.subtasksGraph.getZeroInDegree)
+      .flatMap {
+        case Seq() => ZIO.unit
+        case nodes => runBatchAndWait(nodes)
+      }
+      .tapError(_ => ZIO.logError(environment.subtasksGraph.toStringError))
 
   /**
    * Runs up to maxConcurrentSubtasks nodes in parallel on the configured executor, then
