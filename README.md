@@ -121,6 +121,27 @@ Failure behaviour is controlled by `failFast` on `TaskEnvironment`:
 
 **Example**: [examples/dag/MyApp.scala](examples/dag/MyApp.scala)
 
+##### Post-Processing
+
+Each `WorkflowSubtask` exposes an optional `postProcess` hook that runs after the pipeline (`readSource` → `transformer` → `sink`). It can be used for anything: cleanup, notifications, metadata updates, etc.
+
+By default, `postProcess` only runs on success. Override `ensurePostProcess` to `true` to guarantee it runs regardless of pipeline outcome — the original error is still re-raised afterwards:
+
+```scala
+class MySubtask extends WorkflowSubtask {
+  override val taskId: String            = "my-task"
+  override val ensurePostProcess: Boolean = true  // postProcess runs even on failure
+
+  override protected def postProcess(env: TaskEnvironment): Task[Unit] =
+    ZIO.attempt(cleanUpTempFiles())
+
+  // ... readSource, transformer, sink
+}
+```
+
+> **Note**: `run` is `final`. Customise behaviour exclusively through the provided hooks
+> (`preProcess`, `readSource`, `transformer`, `sink`, `postProcess`).
+
 ##### Parallelism Control
 
 Two independent settings in `TaskEnvironment` control concurrency:

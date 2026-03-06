@@ -22,21 +22,21 @@ class SubtasksGraph private (
   /**
    * Returns the immutable adjacency list mapping each task ID to the set of its direct children.
    */
-  def getAdjacencyList: Map[String, Set[String]] = lock.synchronized {
+  private[subtask] def getAdjacencyList: Map[String, Set[String]] = lock.synchronized {
     adjacencyListIds
   }
 
   /**
    * Returns a snapshot of nodes still pending finalization (i.e. not yet removed from the graph).
    */
-  def getNodesQueue: Seq[SubtaskNode] = lock.synchronized {
+  private[subtask] def getNodesQueue: Seq[SubtaskNode] = lock.synchronized {
     nodesQueueMap.values.toSeq
   }
 
   /**
    * Returns true if there are nodes still pending finalization, false if the graph has fully drained.
    */
-  def nonEmpty: Boolean = lock.synchronized {
+  private[subtask] def nonEmpty: Boolean = lock.synchronized {
     nodesQueueMap.nonEmpty
   }
 
@@ -45,7 +45,7 @@ class SubtasksGraph private (
    *
    * @throws IllegalArgumentException if no zero-in-degree nodes exist but the queue is non-empty, indicating a cycle.
    */
-  def getZeroInDegree: Seq[SubtaskNode] = lock.synchronized {
+  private[subtask] def getZeroInDegree: Seq[SubtaskNode] = lock.synchronized {
     val zeroInDegree = nodesQueueMap.values.filter(_.inDegree == 0).toVector
 
     if (zeroInDegree.isEmpty)
@@ -65,7 +65,7 @@ class SubtasksGraph private (
    *
    * @throws IllegalArgumentException if the node state is not a valid finalization state.
    */
-  def finalizeNode(node: SubtaskNode): Unit = lock.synchronized {
+  private[subtask] def finalizeNode(node: SubtaskNode): Unit = lock.synchronized {
     nodesQueueMap(node.getSubtaskId) = node
     finalizedNodes.append(node)
 
@@ -162,6 +162,20 @@ class SubtasksGraph private (
       visited.add(root.getSubtaskId)
       sb.append(s"${root.subtask.taskId} [LP:${root.subtask.localPriority}, ${root.state}]\n")
       renderChildren(root.getSubtaskId, "")
+    }
+
+    sb.toString
+  }
+
+  def toStringError: String = {
+    val failed = finalizedNodes.filter(_.state == FAILED)
+
+    if (failed.isEmpty) return "=== No Failed Subtasks ===\n"
+
+    val sb = new StringBuilder
+    sb.append("=== Failed Subtasks ===\n\n")
+    failed.foreach { node =>
+      sb.append(s"${node.subtask.taskId} [LP:${node.subtask.localPriority}, FAILED]\n")
     }
 
     sb.toString
