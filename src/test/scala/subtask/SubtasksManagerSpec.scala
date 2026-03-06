@@ -26,9 +26,9 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
 
   /** A subtask that succeeds immediately without performing any work. */
   class SuccessfulSubtask(override val taskId: String) extends WorkflowSubtask {
-    override def run: ZIO[TaskEnvironment, Throwable, Unit]                                      = ZIO.unit
-    override protected def readSource(env: TaskEnvironment): Task[Dataset[_]]                    = ???
-    override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ???
+    override protected def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+      ZIO.succeed(null.asInstanceOf[Dataset[_]])
+    override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ZIO.succeed(inDs)
     override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit]             = ZIO.unit
   }
 
@@ -41,9 +41,9 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
     override val localPriority: Int,
     order: ConcurrentLinkedQueue[String]
   ) extends WorkflowSubtask {
-    override def run: ZIO[TaskEnvironment, Throwable, Unit]                                      = ZIO.attempt(order.add(taskId)).unit
-    override protected def readSource(env: TaskEnvironment): Task[Dataset[_]]                    = ???
-    override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ???
+    override protected def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+      ZIO.attempt(order.add(taskId)).as(null.asInstanceOf[Dataset[_]])
+    override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ZIO.succeed(inDs)
     override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit]             = ZIO.unit
   }
 
@@ -53,23 +53,23 @@ object SubtasksManagerSpec extends ZIOSpecDefault {
    */
   class TrackedSubtask(override val taskId: String, active: AtomicInteger, peak: AtomicInteger)
       extends WorkflowSubtask {
-    override def run: ZIO[TaskEnvironment, Throwable, Unit] =
+    override protected def readSource(env: TaskEnvironment): Task[Dataset[_]] =
       ZIO.attempt {
         val current = active.incrementAndGet()
         peak.updateAndGet(p => math.max(p, current))
         Thread.sleep(50)
         active.decrementAndGet()
-      }.unit
-    override protected def readSource(env: TaskEnvironment): Task[Dataset[_]]                    = ???
-    override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ???
+        null.asInstanceOf[Dataset[_]]
+      }
+    override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ZIO.succeed(inDs)
     override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit]             = ZIO.unit
   }
 
   /** A subtask that always fails with a RuntimeException containing the taskId. */
   class FailingSubtask(override val taskId: String) extends WorkflowSubtask {
-    override def run: ZIO[TaskEnvironment, Throwable, Unit]                                      = ZIO.fail(new RuntimeException(s"$taskId failed"))
-    override protected def readSource(env: TaskEnvironment): Task[Dataset[_]]                    = ???
-    override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ???
+    override protected def readSource(env: TaskEnvironment): Task[Dataset[_]] =
+      ZIO.fail(new RuntimeException(s"$taskId failed"))
+    override protected def transformer(env: TaskEnvironment, inDs: Dataset[_]): Task[Dataset[_]] = ZIO.succeed(inDs)
     override protected def sink(env: TaskEnvironment, outDs: Dataset[_]): Task[Unit]             = ZIO.unit
   }
 
